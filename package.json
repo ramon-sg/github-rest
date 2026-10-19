@@ -1,6 +1,6 @@
 {
   "name": "@ramon-sg/github-rest",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "What an issue workflow uses from GitHub, over REST only with gh api: works where GraphQL is blocked, such as Claude's cloud.",
   "license": "MIT",
   "type": "module",

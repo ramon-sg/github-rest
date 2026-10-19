@@ -24,14 +24,16 @@ const CREATE_LINKED = `mutation CreateLinkedBranch($issueId: ID!, $repositoryId:
 }`;
 
 /**
- * The commit of a GitHub branch.
+ * The commit of a GitHub branch. Each segment of the name is encoded (`#` or `%` would
+ * otherwise break the path).
  * @param repo - `owner/repo`.
  * @param branch - The branch.
  * @returns The oid, or null if it does not exist.
  * @throws GitHubError if GitHub fails for another reason.
  */
 async function branchOid(repo: string, branch: string): Promise<string | null> {
-  const res = await ghApi("GET", `repos/${repo}/git/ref/heads/${branch}`);
+  const path = branch.split("/").map(encodeURIComponent).join("/");
+  const res = await ghApi("GET", `repos/${repo}/git/ref/heads/${path}`);
   if (res.status === 404) return null;
   if (!res.ok) throw failure(res, `could not read branch ${branch}`);
   // NOTE: what matters for "exists" is the 200; the sha may be missing in minimal responses.

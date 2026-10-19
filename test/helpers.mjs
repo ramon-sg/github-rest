@@ -3,6 +3,7 @@
 import {
   chmodSync,
   mkdirSync,
+  symlinkSync,
   mkdtempSync,
   readFileSync,
   realpathSync,
@@ -101,9 +102,11 @@ export function sandbox() {
       env: { ...process.env, ...GIT_ID },
     }).trim();
   git(tmp, "init", "-q", "--bare", "-b", "main", origin);
-  git(tmp, "clone", "-q", origin, repo);
+  // The first commit is made before adding the origin: cloning an empty bare repo warns.
+  git(tmp, "init", "-q", "-b", "main", repo);
   git(repo, "commit", "-q", "--allow-empty", "-m", "init");
-  git(repo, "push", "-q", "origin", "main");
+  git(repo, "remote", "add", "origin", origin);
+  git(repo, "push", "-q", "-u", "origin", "main");
   git(
     repo,
     "config",
@@ -140,14 +143,28 @@ export function sandbox() {
         .filter(Boolean)
         .map((line) => JSON.parse(line));
     },
+    // A PATH with only node and git, to run the CLI without gh.
+    pathWithoutGh() {
+      const only = join(tmp, "no-gh");
+      mkdirSync(only, { recursive: true });
+      symlinkSync(process.execPath, join(only, "node"));
+      const gitPath = execFileSync("sh", ["-c", "command -v git"], {
+        encoding: "utf8",
+      }).trim();
+      symlinkSync(gitPath, join(only, "git"));
+      return only;
+    },
     run(cwd, args, env = {}) {
       writeFileSync(routesFile, JSON.stringify(routes));
       writeFileSync(log, "");
-      const r = spawnSync("node", [CLI, ...args], {
+      const base = { ...process.env };
+      // GH_REPO from the outer shell would change which repo every test uses.
+      delete base.GH_REPO;
+      const r = spawnSync(process.execPath, [CLI, ...args], {
         cwd,
         encoding: "utf8",
         env: {
-          ...process.env,
+          ...base,
           ...GIT_ID,
           PATH: `${bin}:${process.env.PATH}`,
           FAKE_GH_ROUTES: routesFile,

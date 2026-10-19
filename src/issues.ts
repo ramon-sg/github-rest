@@ -1,7 +1,7 @@
 /**
  * @file Issues over REST: read one with the fields `gh issue view --json` used, and assign it.
  */
-import { failure, ghApi } from "./gh.js";
+import { failure, ghApi, GitHubError } from "./gh.js";
 import type { RestIssue } from "./types.js";
 
 /** An issue with the field names of `gh issue view --json`. */
@@ -75,11 +75,12 @@ async function currentLogin(): Promise<string> {
 }
 
 /**
- * Adds people to the issue; `@me` is the gh account.
+ * Adds people to the issue; `@me` is the gh account. GitHub answers 201 and silently skips
+ * whoever cannot be assigned, so the response's assignees are checked.
  * @param repo - `owner/repo`.
  * @param n - Number.
  * @param logins - Logins, with `@me` if needed.
- * @throws GitHubError if GitHub fails.
+ * @throws GitHubError if GitHub fails or ignores someone.
  * @example await assign("acme/widgets", 42, ["@me"])
  */
 export async function assign(
@@ -94,4 +95,15 @@ export async function assign(
     assignees,
   });
   if (!res.ok) throw failure(res, `could not assign issue #${n}`);
+  const got = new Set(
+    ((res.data as RestIssue | null)?.assignees ?? []).map(({ login }) =>
+      login.toLowerCase(),
+    ),
+  );
+  const missing = assignees.filter((login) => !got.has(login.toLowerCase()));
+  if (missing.length > 0)
+    throw new GitHubError(
+      `could not assign ${missing.join(", ")} to issue #${n} (GitHub ignored it)`,
+      res.status,
+    );
 }

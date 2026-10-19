@@ -9,7 +9,7 @@ import { parseArgs } from "node:util";
 import { GitHubError } from "./gh.js";
 import { assign, viewIssue } from "./issues.js";
 import { createPr, findPr, getPr, prView, updatePr } from "./pulls.js";
-import { resolveRepo } from "./repo.js";
+import { InvalidRepoEnvError, resolveRepo } from "./repo.js";
 import { startBranch } from "./start.js";
 import { readWork } from "./work.js";
 
@@ -128,18 +128,25 @@ export function issueNumber(text: string | undefined): number {
 }
 
 /**
- * Repo of the command: `-R` or the directory's origin.
+ * Repo of the command: `-R`, `GH_REPO` or the directory's origin.
  * @param flags - Options.
  * @returns `owner/repo`.
- * @throws UsageError if `-R` is not `owner/repo`; GitHubError if there is no repo.
+ * @throws UsageError if `-R` or `GH_REPO` is malformed; GitHubError if there is no repo.
  */
 export function repoOf(flags: Flags): string {
   if (flags.repo !== undefined && !REPO_FLAG.test(flags.repo))
     throw new UsageError(`-R expects owner/repo: ${flags.repo}`);
-  const repo = resolveRepo(flags.repo);
+  let repo: string | null;
+  try {
+    repo = resolveRepo(flags.repo);
+  } catch (error) {
+    if (error instanceof InvalidRepoEnvError)
+      throw new UsageError(error.message);
+    throw error;
+  }
   if (repo === null)
     throw new GitHubError(
-      "can't tell which repo this is: run inside a checkout whose origin is on GitHub, or pass -R owner/repo.",
+      "can't tell which repo this is: run inside a checkout whose origin is on GitHub, pass -R owner/repo or set GH_REPO.",
       0,
     );
   return repo;

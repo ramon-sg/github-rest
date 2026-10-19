@@ -10,13 +10,14 @@ const CLOSING_WORDS = "close[sd]?|fix(?:e[sd])?|resolve[sd]?";
 const PART_WORDS = "part of|parte de";
 
 /**
- * Expression for a phrase followed by `#n`, not accepting `#n0`.
+ * Expression for a phrase followed by `#n`, with an optional colon (`Closes: #n`), not
+ * accepting `#n0`.
  * @param words - Alternatives for the phrase.
  * @param n - Issue number.
  * @returns The expression, case-insensitive.
  */
 const phraseRe = (words: string, n: number) =>
-  new RegExp(`\\b(?:${words})\\s+#${n}(?![0-9])`, "i");
+  new RegExp(`\\b(?:${words}):?\\s*#${n}(?![0-9])`, "i");
 
 /**
  * Expression for a branch of the issue: `<n>-` at the start or after a `/`.

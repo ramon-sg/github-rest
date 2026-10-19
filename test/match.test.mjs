@@ -32,3 +32,13 @@ test("work mention: closing, Part of or Parte de", () => {
   assert.ok(refsIssue("Closes #42", 42));
   assert.ok(!refsIssue("Part of #420. Ver #42.", 42));
 });
+
+test("closing and work phrases with a colon", () => {
+  for (const body of ["Closes: #42", "Fixes:#42", "resolved:  #42"])
+    assert.ok(closesIssue(body, 42), body);
+  assert.ok(!closesIssue("Closes: #420", 42));
+  assert.ok(refsIssue("Part of: #42", 42));
+  assert.ok(refsIssue("Parte de: #42", 42));
+  assert.ok(!refsIssue("Part of: #421", 42));
+  assert.ok(!closesIssue("prefixes: #42", 42));
+});

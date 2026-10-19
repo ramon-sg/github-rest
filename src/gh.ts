@@ -8,13 +8,20 @@ import { spawn } from "node:child_process";
 /** HTTP method of a call. */
 export type Method = "GET" | "POST" | "PATCH";
 
-/** Result of `gh api`: `status` is the HTTP code, or 0 if there was no response (offline). */
+/**
+ * Result of `gh api`: `status` is the HTTP code, or 0 if there was no response (offline).
+ * `missingGh` is set when gh itself could not be run, which is not the same as offline.
+ */
 export interface GhResult {
   ok: boolean;
   status: number;
   data: unknown;
   stderr: string;
+  missingGh?: true;
 }
+
+/** Message when the `gh` binary is not in PATH. */
+export const GH_MISSING = "gh not found in PATH";
 
 /** Page size of REST lists, the maximum GitHub accepts. */
 export const PAGE_SIZE = 100;
@@ -76,8 +83,18 @@ export function ghApi(
     child.stderr.setEncoding("utf8").on("data", (chunk: string) => {
       err += chunk;
     });
-    child.on("error", (error) =>
-      resolve({ ok: false, status: 0, data: null, stderr: error.message }),
+    child.on("error", (error: NodeJS.ErrnoException) =>
+      resolve(
+        error.code === "ENOENT"
+          ? {
+              ok: false,
+              status: 0,
+              data: null,
+              stderr: GH_MISSING,
+              missingGh: true,
+            }
+          : { ok: false, status: 0, data: null, stderr: error.message },
+      ),
     );
     child.on("close", (code) => {
       const data = parseJson(out);

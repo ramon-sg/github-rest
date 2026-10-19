@@ -3,7 +3,7 @@
  * the issue, its timeline, the repo's branches with `<n>-` and the PRs of each. Linked
  * branches come from an optional GraphQL query; without it, the output says `graphql: false`.
  */
-import { ghApi, ghGetAll, graphql, GitHubError } from "./gh.js";
+import { GH_MISSING, ghApi, ghGetAll, graphql, GitHubError } from "./gh.js";
 import { fetchIssue } from "./issues.js";
 import { emptyLocal, type Local, localWork } from "./local.js";
 import { closesIssue, issueBranchRe, refsIssue } from "./match.js";
@@ -273,26 +273,30 @@ async function issueEntry(ctx: Context, n: number): Promise<IssueEntry> {
 }
 
 /**
- * Reads the work of the issues with gh issue-work's contract.
- * @param repo - `owner/repo`.
+ * Reads the work of the issues with gh issue-work's contract. After reading the repo, every
+ * call uses its current `full_name`, so a renamed repo still works.
+ * @param asked - `owner/repo`, as given.
  * @param numbers - The issues; duplicates are removed and the order is kept.
  * @param opts - `cwd`: the directory, for local state (only if it is a checkout of the repo).
  * @returns The output and the warnings.
- * @throws GitHubError if the repo does not exist or GitHub fails midway.
+ * @throws GitHubError if gh is missing, the repo does not exist or GitHub fails midway.
  * @example await readWork("acme/widgets", [42])
  */
 export async function readWork(
-  repo: string,
+  asked: string,
   numbers: number[],
   opts: { cwd?: string } = {},
 ): Promise<{ output: WorkOutput; warnings: string[] }> {
   const cwd = opts.cwd ?? process.cwd();
   const wanted = [...new Set(numbers)];
   const warnings: string[] = [];
-  const local = isCheckoutOf(repo, cwd) ? localWork(wanted, cwd, warnings) : {};
-  const repoRes = await ghApi("GET", `repos/${repo}`);
+  const local = isCheckoutOf(asked, cwd)
+    ? localWork(wanted, cwd, warnings)
+    : {};
+  const repoRes = await ghApi("GET", `repos/${asked}`);
+  if (repoRes.missingGh) throw new GitHubError(GH_MISSING, 0);
   if (repoRes.status === 404)
-    throw new GitHubError(`repo ${repo} not found.`, 404);
+    throw new GitHubError(`repo ${asked} not found.`, 404);
   if (!repoRes.ok) {
     warnings.push(OFFLINE_WARNING);
     const issues = wanted.map((n) => ({
@@ -300,11 +304,12 @@ export async function readWork(
       local: local[String(n)] ?? emptyLocal(),
     }));
     return {
-      output: { repo, defaultBranch: null, offline: true, issues },
+      output: { repo: asked, defaultBranch: null, offline: true, issues },
       warnings,
     };
   }
   const info = repoRes.data as RestRepo;
+  const repo = info.full_name;
   const branches = await ghGetAll(
     `repos/${repo}/branches`,
     MAX_BRANCH_PAGES,
@@ -324,7 +329,7 @@ export async function readWork(
   const issues: IssueEntry[] = [];
   for (const n of wanted) issues.push(await issueEntry(ctx, n));
   const output: WorkOutput = {
-    repo: info.full_name,
+    repo,
     defaultBranch: info.default_branch,
     ...(ctx.linked === null ? { graphql: false as const } : {}),
     issues,

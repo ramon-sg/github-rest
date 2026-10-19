@@ -35,7 +35,11 @@ test("issue view: a missing issue and a PR number exit with 1", () => {
 test("issue assign: @me is the gh account", () => {
   const s = sandbox();
   s.route("GET user", { login: "ramon" });
-  s.route("POST repos/acme/widgets/issues/42/assignees", issue(42), 201);
+  s.route(
+    "POST repos/acme/widgets/issues/42/assignees",
+    issue(42, { assignees: [{ login: "Ramon" }, { login: "ana" }] }),
+    201,
+  );
   const r = s.run(s.repo, ["issue", "assign", "42", "@me", "ana"]);
   assert.equal(r.status, 0, r.err);
   assert.deepEqual(s.calls().at(-1), {
@@ -43,6 +47,31 @@ test("issue assign: @me is the gh account", () => {
     path: "repos/acme/widgets/issues/42/assignees",
     body: { assignees: ["ramon", "ana"] },
   });
+});
+
+test("issue assign: someone GitHub ignored exits with 1", () => {
+  const s = sandbox();
+  s.route("POST repos/acme/widgets/issues/42/assignees", issue(42), 201);
+  const r = s.run(s.repo, ["issue", "assign", "42", "ana", "bob"]);
+  assert.equal(r.status, 1);
+  assert.match(
+    r.err,
+    /could not assign bob to issue #42 \(GitHub ignored it\)/,
+  );
+});
+
+test("without gh in PATH: exits with 1 and says so", () => {
+  const s = sandbox();
+  const PATH = s.pathWithoutGh();
+  for (const args of [
+    ["issue", "view", "42"],
+    ["issue-work", "42", "--json"],
+  ]) {
+    const r = s.run(s.repo, args, { PATH });
+    assert.equal(r.status, 1, `${args.join(" ")}: ${r.out}${r.err}`);
+    assert.match(r.err, /gh not found in PATH/);
+    assert.equal(r.out, "");
+  }
 });
 
 test("issue assign: if it can't tell who you are, exits with 1", () => {

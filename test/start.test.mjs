@@ -101,6 +101,18 @@ test("the branch already exists: exits with 1 without trying to create it", () =
   assert.ok(!s.calls().some((c) => c.method === "POST"));
 });
 
+test("branch names are encoded per segment in the ref path", () => {
+  const s = sandbox();
+  base(s);
+  s.route("GET repos/acme/widgets/git/ref/heads/feat/42-a%23b", {
+    object: { sha: "x" },
+  });
+  const r = s.run(s.repo, ["issue-work", "start", "42", "--branch", "feat/42-a#b"]);
+  assert.equal(r.status, 1);
+  assert.match(r.err, /branch feat\/42-a#b already exists/);
+  assert.equal(s.calls().at(-1).path, "repos/acme/widgets/git/ref/heads/feat/42-a%23b");
+});
+
 test("an issue that does not exist: exits with 1", () => {
   const s = sandbox();
   base(s);

@@ -255,6 +255,22 @@ test("-R: another repo, without the local state", () => {
   assert.equal(s.run(s.repo, ["issue-work", "42", "--json", "-R"]).status, 2);
 });
 
+test("a renamed repo: later calls use its current full_name", () => {
+  const s = sandbox();
+  s.route("GET repos/old/name", REPO_BODY);
+  s.route("GET repos/acme/widgets/issues/42", issue(42));
+  s.page("repos/acme/widgets/branches", [{ name: "main" }]);
+  s.page("repos/acme/widgets/issues/42/timeline", [crossRef(7)]);
+  s.route("GET repos/acme/widgets/pulls/7", pull(7, "OPEN", "chore/x", "Ver #42"));
+  const r = s.run(s.outside, ["issue-work", "42", "-R", "old/name", "--json"]);
+  assert.equal(r.status, 0, r.err);
+  const out = r.json();
+  assert.equal(out.repo, "acme/widgets");
+  assert.deepEqual(out.issues[0].mentions, [
+    { number: 7, state: "OPEN", branch: "chore/x" },
+  ]);
+});
+
 test("usage", () => {
   const s = sandbox();
   base(s);

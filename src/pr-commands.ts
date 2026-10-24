@@ -1,6 +1,6 @@
 /**
  * @file The `pr` commands of the CLI. There is no `merge` nor `ready`: merging stays with
- * `gh`, where guardrails such as `claude-perimeter` watch it, and taking a PR out of draft
+ * `gh`, which Claude Code's auto mode reviews before it runs, and taking a PR out of draft
  * only exists in GraphQL.
  */
 import {

@@ -38,6 +38,7 @@ export {
   type Review,
   type Thread,
 } from "./reviews.js";
+export { InvalidRepoEnvError, resolveRepo } from "./repo.js";
 export { type StartResult, startBranch } from "./start.js";
 export {
   type IssueEntry,

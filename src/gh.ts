@@ -6,7 +6,7 @@
 import { spawn } from "node:child_process";
 
 /** HTTP method of a call. */
-export type Method = "GET" | "POST" | "PATCH";
+export type Method = "GET" | "POST" | "PATCH" | "DELETE";
 
 /**
  * Result of `gh api`: `status` is the HTTP code, or 0 if there was no response (offline).
@@ -133,6 +133,8 @@ export function failure(res: GhResult, what: string): GitHubError {
  * @param path - Path of the list, with or without a query.
  * @param maxPages - Page ceiling.
  * @param what - What is being read, for the error ("the branches of acme/widgets").
+ * @param key - Field that holds the list when the page is an object
+ *   (`check_runs` in `{total_count, check_runs}`); without it the page is the list.
  * @returns The items and whether the list was cut short.
  * @throws GitHubError if the first page fails.
  * @example await ghGetAll("repos/acme/widgets/branches", 10, "the branches")
@@ -141,6 +143,7 @@ export async function ghGetAll(
   path: string,
   maxPages: number,
   what: string,
+  key?: string,
 ): Promise<{ items: unknown[]; truncated: boolean }> {
   const items: unknown[] = [];
   const sep = path.includes("?") ? "&" : "?";
@@ -149,12 +152,16 @@ export async function ghGetAll(
       "GET",
       `${path}${sep}per_page=${PAGE_SIZE}&page=${page}`,
     );
-    if (!res.ok || !Array.isArray(res.data)) {
+    const list =
+      key === undefined
+        ? res.data
+        : (res.data as Record<string, unknown> | null)?.[key];
+    if (!res.ok || !Array.isArray(list)) {
       if (page === 1) throw failure(res, `could not read ${what}`);
       return { items, truncated: true };
     }
-    items.push(...res.data);
-    if (res.data.length < PAGE_SIZE) return { items, truncated: false };
+    items.push(...list);
+    if (list.length < PAGE_SIZE) return { items, truncated: false };
   }
   return { items, truncated: true };
 }

@@ -4,12 +4,16 @@
  * stdout, warnings on stderr; exits 0 on success, 1 if GitHub failed and 2 on bad usage.
  */
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
-import { parseArgs } from "node:util";
-import { GitHubError } from "./gh.js";
-import { assign, viewIssue } from "./issues.js";
-import { createPr, findPr, getPr, prView, updatePr } from "./pulls.js";
-import { InvalidRepoEnvError, resolveRepo } from "./repo.js";
+import {
+  emit,
+  type Flags,
+  issueNumber,
+  parse,
+  repoOf,
+  UsageError,
+} from "./args.js";
+import { issueCommand, labelCommand } from "./issue-commands.js";
+import { prCommand } from "./pr-commands.js";
 import { startBranch } from "./start.js";
 import { readWork } from "./work.js";
 
@@ -17,248 +21,23 @@ import { readWork } from "./work.js";
 const USAGE = `Usage:
   github-rest issue-work <n> [<n>...] [-R owner/repo] --json
   github-rest issue-work start <n> --branch <branch> [--base <branch>] [-R owner/repo]
-  github-rest issue view <n> [-R owner/repo]
-  github-rest issue assign <n> <login...> [-R owner/repo]
-  github-rest pr find <branch> [-R owner/repo]
-  github-rest pr view <n> [-R owner/repo]
-  github-rest pr create --head <branch> --base <branch> --title <title> (--body <text> | --body-file <file>) [--draft] [-R owner/repo]
-  github-rest pr edit <n> [--body <text> | --body-file <file>] [--reopen] [-R owner/repo]`;
+  github-rest issue view <n>
+  github-rest issue assign <n> <login|@me...>
+  github-rest issue create --title <title> (--body <text> | --body-file <file>) [--label <l>...] [--assignee <login|@me>...]
+  github-rest issue edit <n> [--title <title>] [--body <text> | --body-file <file>] [--add-label <l>...] [--remove-label <l>...] [--close | --reopen]
+  github-rest issue list [--state open|closed|all] [--label <l>...] [--missing-heading <text>] [--limit <n>]
+  github-rest issue comments <n>
+  github-rest issue comment <n> (--body <text> | --body-file <file>)
+  github-rest label list
+  github-rest label create <name> [--color <hex>] [--description <text>] [--force]
+  github-rest pr find <branch>
+  github-rest pr view <n>
+  github-rest pr create --head <branch> --base <branch> --title <title> (--body <text> | --body-file <file>) [--draft]
+  github-rest pr edit <n> [--body <text> | --body-file <file>] [--reopen]
+  github-rest pr checks <n> | pr reviews <n> | pr comments <n>
+  github-rest pr reply <n> <comment-id> (--body <text> | --body-file <file>)
 
-/** Usage error: exits 2 and prints the usage text. */
-export class UsageError extends Error {}
-
-/** Options any command accepts; each command validates its own. */
-const OPTIONS = {
-  repo: { type: "string", short: "R" },
-  json: { type: "boolean" },
-  help: { type: "boolean", short: "h" },
-  branch: { type: "string" },
-  base: { type: "string" },
-  head: { type: "string" },
-  title: { type: "string" },
-  body: { type: "string" },
-  "body-file": { type: "string" },
-  draft: { type: "boolean" },
-  reopen: { type: "boolean" },
-} as const;
-
-/** Parsed options. */
-export interface Flags {
-  repo?: string;
-  json?: boolean;
-  help?: boolean;
-  branch?: string;
-  base?: string;
-  head?: string;
-  title?: string;
-  body?: string;
-  "body-file"?: string;
-  draft?: boolean;
-  reopen?: boolean;
-}
-
-/** An issue or PR number: digits only (`042` is 42). */
-const NUMBER = /^\d+$/;
-
-/** The `owner/repo` value of `-R`. */
-const REPO_FLAG = /^[^/\s]+\/[^/\s]+$/;
-
-/**
- * Joins each string option with its value into a single `--name=value` token, so that
- * `parseArgs` does not mistake a value that starts with `-` (`--body "- item"`) for another
- * option. Boolean options are left as they are and a string option with no value at the end
- * is still a usage error. Derived from `OPTIONS`, with no duplicated list.
- * @param argv - Arguments without `node` or the script.
- * @returns The arguments with string options joined to their value.
- * @example joinOptionValues(["--title", "-x"]) // ["--title=-x"]
- */
-export function joinOptionValues(argv: string[]): string[] {
-  const byToken = new Map<string, string>();
-  for (const [name, spec] of Object.entries(OPTIONS)) {
-    if (spec.type !== "string") continue;
-    byToken.set(`--${name}`, name);
-    if ("short" in spec) byToken.set(`-${spec.short}`, name);
-  }
-  const out: string[] = [];
-  for (let i = 0; i < argv.length; i++) {
-    const token = argv[i] as string;
-    if (token === "--") {
-      out.push(...argv.slice(i));
-      break;
-    }
-    const name = byToken.get(token);
-    if (name === undefined || i + 1 >= argv.length) out.push(token);
-    else out.push(`--${name}=${argv[++i] as string}`);
-  }
-  return out;
-}
-
-/**
- * Parses the arguments; `-R` can go anywhere.
- * @param argv - Arguments without `node` or the script.
- * @returns Options and positionals.
- * @throws UsageError if an option is unknown or has no value.
- */
-export function parse(argv: string[]): { flags: Flags; args: string[] } {
-  try {
-    const { values, positionals } = parseArgs({
-      args: joinOptionValues(argv),
-      options: OPTIONS,
-      allowPositionals: true,
-      strict: true,
-    });
-    return { flags: values as Flags, args: positionals };
-  } catch (error) {
-    throw new UsageError(
-      error instanceof Error ? error.message : String(error),
-    );
-  }
-}
-
-/**
- * Issue or PR number from an argument.
- * @param text - The argument.
- * @returns The number.
- * @throws UsageError if it is not a number.
- */
-export function issueNumber(text: string | undefined): number {
-  if (text === undefined || !NUMBER.test(text))
-    throw new UsageError(`invalid number: ${text ?? "(missing)"}`);
-  return Number(text);
-}
-
-/**
- * Repo of the command: `-R`, `GH_REPO` or the directory's origin.
- * @param flags - Options.
- * @returns `owner/repo`.
- * @throws UsageError if `-R` or `GH_REPO` is malformed; GitHubError if there is no repo.
- */
-export function repoOf(flags: Flags): string {
-  if (flags.repo !== undefined && !REPO_FLAG.test(flags.repo))
-    throw new UsageError(`-R expects owner/repo: ${flags.repo}`);
-  let repo: string | null;
-  try {
-    repo = resolveRepo(flags.repo);
-  } catch (error) {
-    if (error instanceof InvalidRepoEnvError)
-      throw new UsageError(error.message);
-    throw error;
-  }
-  if (repo === null)
-    throw new GitHubError(
-      "can't tell which repo this is: run inside a checkout whose origin is on GitHub, pass -R owner/repo or set GH_REPO.",
-      0,
-    );
-  return repo;
-}
-
-/**
- * Prints a result as JSON and the warnings on stderr.
- * @param value - What to print.
- * @param warnings - Warnings.
- */
-export function emit(value: unknown, warnings: string[] = []): void {
-  for (const warning of warnings)
-    process.stderr.write(`github-rest: ${warning}\n`);
-  process.stdout.write(`${JSON.stringify(value)}\n`);
-}
-
-/**
- * Body from `--body` or `--body-file`.
- * @param flags - Options.
- * @returns The body, or undefined if none was given.
- */
-function bodyOf(flags: Flags): string | undefined {
-  if (flags.body !== undefined) return flags.body;
-  return flags["body-file"] === undefined
-    ? undefined
-    : readFileSync(flags["body-file"], "utf8");
-}
-
-/**
- * `issue view` and `issue assign`.
- * @param flags - Options.
- * @param args - Positionals after `issue`.
- * @throws UsageError or GitHubError.
- */
-async function issueCommand(flags: Flags, args: string[]): Promise<void> {
-  const [sub, number, ...logins] = args;
-  const n = issueNumber(number);
-  if (sub === "view" && logins.length === 0) {
-    const repo = repoOf(flags);
-    const found = await viewIssue(repo, n);
-    if (found === null)
-      throw new GitHubError(`issue #${n} does not exist in ${repo}.`, 404);
-    return emit(found);
-  }
-  if (sub === "assign" && logins.length > 0)
-    return assign(repoOf(flags), n, logins);
-  throw new UsageError("issue usage: view <n> | assign <n> <login...>");
-}
-
-/**
- * `pr create`: requires head, base, title and body; prints the URL.
- * @param flags - Options.
- * @throws UsageError or GitHubError.
- */
-async function prCreate(flags: Flags): Promise<void> {
-  const body = bodyOf(flags);
-  const { head, base, title } = flags;
-  if (
-    head === undefined ||
-    base === undefined ||
-    title === undefined ||
-    body === undefined
-  ) {
-    throw new UsageError(
-      "pr create needs --head, --base, --title and --body or --body-file.",
-    );
-  }
-  const created = await createPr(repoOf(flags), {
-    head,
-    base,
-    title,
-    body,
-    draft: flags.draft ?? false,
-  });
-  process.stdout.write(`${created.url}\n`);
-}
-
-/**
- * `pr find`, `pr view`, `pr create` and `pr edit`.
- * @param flags - Options.
- * @param args - Positionals after `pr`.
- * @throws UsageError or GitHubError.
- */
-async function prCommand(flags: Flags, args: string[]): Promise<void> {
-  const [sub, target] = args;
-  if (sub === "create") return prCreate(flags);
-  if (sub === "find" && target !== undefined) {
-    const pr = await findPr(repoOf(flags), target);
-    return emit(pr === null ? null : prView(pr));
-  }
-  if (sub === "view") {
-    const n = issueNumber(target);
-    const repo = repoOf(flags);
-    const pr = await getPr(repo, n);
-    if (pr === null)
-      throw new GitHubError(`PR #${n} does not exist in ${repo}.`, 404);
-    return emit(prView(pr));
-  }
-  if (sub === "edit") {
-    const n = issueNumber(target);
-    const body = bodyOf(flags);
-    if (body === undefined && !flags.reopen)
-      throw new UsageError("pr edit needs --body, --body-file or --reopen.");
-    return updatePr(repoOf(flags), n, {
-      ...(body === undefined ? {} : { body }),
-      ...(flags.reopen ? { state: "open" as const } : {}),
-    });
-  }
-  throw new UsageError(
-    "pr usage: find <branch> | view <n> | create … | edit <n> …",
-  );
-}
+Every command takes -R owner/repo. Labels and assignees also take commas (--label a,b).`;
 
 /**
  * `issue-work start <n> --branch <branch> [--base <branch>]`.
@@ -316,6 +95,7 @@ export async function main(argv: string[]): Promise<number> {
   if (group === "issue-work") await issueWorkCommand(flags, rest);
   else if (group === "issue") await issueCommand(flags, rest);
   else if (group === "pr") await prCommand(flags, rest);
+  else if (group === "label") await labelCommand(flags, rest);
   else
     throw new UsageError(
       group === undefined

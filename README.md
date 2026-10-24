@@ -51,8 +51,8 @@ github-rest pr reply <n> <comment-id> (--body <text> | --body-file <file>)
   body, url, createdAt, replies}]`. Whether a thread is resolved only exists in GraphQL.
 - **`pr reply`** accepts the id of any comment of the thread.
 
-There is no `pr merge` nor `pr ready`. Merging stays with `gh pr merge`, where guardrails such
-as `claude-perimeter` watch it, and taking a PR out of draft and resolving threads only exist
+There is no `pr merge` nor `pr ready`. Merging stays with `gh pr merge`, which Claude Code's
+auto mode reviews before it runs, and taking a PR out of draft and resolving threads only exist
 in GraphQL, which Claude's cloud blocks.
 
 JSON on stdout, warnings on stderr. Exits 0 on success, 1 if GitHub failed (or `gh` is not in
@@ -64,7 +64,8 @@ be a GitHub URL (https, `git@`, `ssh://`) or the local git proxy of Claude's clo
 ## Library
 
 ```ts
-import { readWork, startBranch } from "@ramon-sg/github-rest";
+import { readWork, resolveRepo, startBranch } from "@ramon-sg/github-rest";
+const repo = resolveRepo(undefined); // like -R: the flag, then GH_REPO, then origin
 const { output, warnings } = await readWork("acme/widgets", [42]);
 ```
 

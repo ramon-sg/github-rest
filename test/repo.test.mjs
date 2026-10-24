@@ -67,3 +67,13 @@ test("GH_REPO: a value that is not [host/]owner/repo exits with 2", () => {
   assert.equal(r.status, 2);
   assert.match(r.err, /GH_REPO/);
 });
+
+test("the library exports resolveRepo: -R first, then GH_REPO, then origin", async () => {
+  const { resolveRepo, InvalidRepoEnvError } = await import("../dist/index.js");
+  const s = sandbox();
+
+  assert.equal(resolveRepo("a/b", s.repo, { GH_REPO: "c/d" }), "a/b");
+  assert.equal(resolveRepo(undefined, s.repo, { GH_REPO: "c/d" }), "c/d");
+  assert.equal(resolveRepo(undefined, s.repo, {}), "acme/widgets");
+  assert.throws(() => resolveRepo(undefined, s.repo, { GH_REPO: "nope" }), InvalidRepoEnvError);
+});

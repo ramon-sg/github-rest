@@ -15,7 +15,10 @@ test("issue create: labels split on commas, @me resolved, number and URL on stdo
   s.route("GET user", { login: "ramon" });
   s.route(
     `POST ${ISSUES}`,
-    issue(50, { assignees: [{ login: "ramon" }] }),
+    issue(50, {
+      assignees: [{ login: "ramon" }],
+      labels: [{ name: "bug" }, { name: "area:ui" }, { name: "size:S" }],
+    }),
     201,
   );
   const body = `${s.tmp}/body.md`;
@@ -44,17 +47,19 @@ test("issue create: labels split on commas, @me resolved, number and URL on stdo
   assert.equal(r.err, "");
 });
 
-test("issue create: someone GitHub did not assign is a warning, the issue exists", () => {
+test("issue create: an assignee or label GitHub dropped is a warning, the issue exists", () => {
   const s = sandbox();
-  s.route(`POST ${ISSUES}`, issue(50, { assignees: [] }), 201);
+  s.route(`POST ${ISSUES}`, issue(50, { assignees: [], labels: [{ name: "bug" }] }), 201);
 
   const r = s.run(s.repo, [
     "issue", "create", "--title", "T", "--body", "", "--assignee", "bob",
+    "--label", "bug,size:S",
   ]);
 
   assert.equal(r.status, 0, r.err);
   assert.equal(r.json().number, 50);
   assert.match(r.err, /GitHub did not assign bob to issue #50/);
+  assert.match(r.err, /GitHub did not add size:S to issue #50\./);
 });
 
 test("issue edit: fields in one PATCH, then the labels to add and to remove", () => {

@@ -34,10 +34,12 @@ github-rest pr reply <n> <comment-id> (--body <text> | --body-file <file>)
 ```
 
 - **Labels and assignees** repeat the flag or take commas (`--label bug,area:ui`).
-- **`issue create`** prints `{number, url}`; `pr create` prints only the URL.
+- **`issue create`** prints `{number, url}`; `pr create` prints only the URL. GitHub creates
+  a label that does not exist (gh fails instead) and drops, with a warning here, the labels
+  and assignees the account cannot set.
 - **`issue list`** leaves PRs out and returns up to 100 issues by default, with the fields of
   `issue view`. `--missing-heading` keeps the ones whose body does not contain that text
-  (for example `**Rama sugerida**`). It reads at most 1000 items and warns if there were more.
+  (for example `**Rama sugerida`, which also matches `**Rama sugerida:**`). It reads at most 1000 items and warns if there were more.
 - **`issue comments` and `issue comment`** also work with a PR number: they are the PR's
   conversation, not the comments on its diff.
 - **`label create --force`** updates the color and description if the label exists, so a

@@ -162,7 +162,6 @@ test("pr usage errors exit with 2 before calling GitHub, and there is no merge n
     ["pr", "reply", "9", "3"],
     ["pr", "reply", "9", "x", "--body", "b"],
     ["pr", "reply", "9"],
-    ["pr", "view", "9", "10"],
     ["pr", "merge", "9"],
     ["pr", "ready", "9"],
   ]) {

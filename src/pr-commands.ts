@@ -131,8 +131,8 @@ async function prLists(
   return false;
 }
 
-/** Subcommands of `pr` that take only the PR number. */
-const BY_NUMBER = new Set(["view", "edit", "checks", "reviews", "comments"]);
+/** Subcommands of `pr` that take only the PR number; extra arguments are a usage error. */
+const LISTS = new Set(["checks", "reviews", "comments"]);
 
 /**
  * `pr find|view|create|edit|checks|reviews|comments|reply`.
@@ -149,12 +149,11 @@ export async function prCommand(flags: Flags, args: string[]): Promise<void> {
   }
   if (sub === "reply" && extra.length === 1)
     return prReply(flags, issueNumber(target), extra[0]);
-  if (sub !== undefined && BY_NUMBER.has(sub) && extra.length === 0) {
-    const n = issueNumber(target);
-    if (sub === "view") return prViewCommand(flags, n);
-    if (sub === "edit") return prEdit(flags, n);
-    if (await prLists(flags, sub, n)) return;
-  }
+  // WHY: view and edit ignored extra arguments before 0.2.0; they still do.
+  if (sub === "view") return prViewCommand(flags, issueNumber(target));
+  if (sub === "edit") return prEdit(flags, issueNumber(target));
+  if (sub !== undefined && LISTS.has(sub) && extra.length === 0)
+    if (await prLists(flags, sub, issueNumber(target))) return;
   throw new UsageError(
     "pr usage: find <branch> | view <n> | create … | edit <n> … | checks <n> | reviews <n> | comments <n> | reply <n> <comment-id> …",
   );

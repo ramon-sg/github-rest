@@ -146,8 +146,9 @@ export interface NewIssue {
 }
 
 /**
- * Opens an issue. If GitHub leaves someone out of the assignees, the issue is already
- * created, so it is a warning and not an error.
+ * Opens an issue. GitHub silently drops the assignees and labels the account cannot set;
+ * the issue is already created then, so each one is a warning and not an error. A label
+ * that does not exist yet is created by GitHub, unlike `gh issue create`.
  * @param repo - `owner/repo`.
  * @param issue - Title, body, labels and assignees (`@me` is the gh account).
  * @returns Number, URL and warnings.
@@ -168,10 +169,16 @@ export async function createIssue(
   if (!res.ok) throw failure(res, "could not create the issue");
   const raw = res.data as RestIssue;
   const missing = ignoredLogins(raw, assignees);
-  const warnings =
-    missing.length === 0
+  const labels = new Set(toIssueView(raw).labels.map(({ name }) => name));
+  const unlabeled = (issue.labels ?? []).filter((name) => !labels.has(name));
+  const warnings = [
+    ...(missing.length === 0
       ? []
-      : [`GitHub did not assign ${missing.join(", ")} to issue #${raw.number}.`];
+      : [`GitHub did not assign ${missing.join(", ")} to issue #${raw.number}.`]),
+    ...(unlabeled.length === 0
+      ? []
+      : [`GitHub did not add ${unlabeled.join(", ")} to issue #${raw.number}.`]),
+  ];
   return { number: raw.number, url: raw.html_url, warnings };
 }
 
@@ -242,14 +249,15 @@ export const MAX_ISSUE_PAGES = 10;
 
 /**
  * The issues of the repo, newest first, without PRs (REST mixes them). `missingHeading`
- * keeps only those whose body does not contain that text, such as `**Rama sugerida**`;
+ * keeps only those whose body does not contain that text, such as `**Rama sugerida`
+ * (without the closing `**`, so it also matches `**Rama sugerida:**`);
  * GitHub cannot filter by body, so it is done here, reading page by page until `limit`
  * issues match or `MAX_ISSUE_PAGES` pages were read.
  * @param repo - `owner/repo`.
  * @param filter - State (open by default), labels (all must match), heading and limit.
  * @returns The issues and whether the page ceiling cut the list short.
  * @throws GitHubError if the first page fails.
- * @example await listIssues("acme/widgets", { missingHeading: "**Rama sugerida**" })
+ * @example await listIssues("acme/widgets", { missingHeading: "**Rama sugerida" })
  */
 export async function listIssues(
   repo: string,

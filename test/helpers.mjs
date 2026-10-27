@@ -13,6 +13,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { execFileSync, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import assert from "node:assert/strict";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CLI = join(HERE, "..", "dist", "cli.js");
@@ -173,6 +174,8 @@ export function sandbox() {
           ...env,
         },
       });
+      const graphql = this.calls().filter((call) => call.path === "graphql");
+      assert.deepEqual(graphql, [], "github-rest must only call REST endpoints");
       return {
         status: r.status,
         out: r.stdout,

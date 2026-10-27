@@ -1,7 +1,7 @@
 /**
  * @file The `pr` commands of the CLI. There is no `merge` nor `ready`: merging stays with
  * `gh`, which Claude Code's auto mode reviews before it runs, and taking a PR out of draft
- * only exists in GraphQL.
+ * only exists outside REST.
  */
 import {
   bodyOf,

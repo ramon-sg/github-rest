@@ -1,12 +1,12 @@
 /**
- * @file PRs over REST: read, find by branch, create and edit, with the state as in GraphQL
+ * @file PRs over REST: read, find by branch, create and edit, with the state as `gh pr view`
  * (`OPEN`, `CLOSED`, `MERGED`).
  */
 import { failure, ghApi } from "./gh.js";
 import { sameRepo, splitRepo } from "./repo.js";
 import type { RestPull } from "./types.js";
 
-/** State of a PR as GraphQL gives it. */
+/** State of a PR as `gh pr view` gives it. */
 export type PrState = "OPEN" | "CLOSED" | "MERGED";
 
 /** A PR with what the package uses. */
@@ -26,7 +26,7 @@ export interface Pr {
 export const PRS_PER_BRANCH = 20;
 
 /**
- * A REST PR with the GraphQL state: `MERGED` if it has `merged_at`.
+ * A REST PR with the state of `gh pr view`: `MERGED` if it has `merged_at`.
  * @param raw - The REST PR.
  * @returns The PR.
  * @example toPr(raw).state // "MERGED"

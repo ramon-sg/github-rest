@@ -1,14 +1,14 @@
 /**
  * @file The work of one or more issues, with gh issue-work's JSON contract, built over REST:
- * the issue, its timeline, the repo's branches with `<n>-` and the PRs of each. Linked
- * branches come from an optional GraphQL query; without it, the output says `graphql: false`.
+ * the issue, its timeline, the repo's branches with `<n>-` and the PRs of each. Branches
+ * linked in the issue's Development panel are not read: only the other API has them.
  */
-import { GH_MISSING, ghApi, ghGetAll, graphql, GitHubError } from "./gh.js";
+import { GH_MISSING, ghApi, ghGetAll, GitHubError } from "./gh.js";
 import { fetchIssue } from "./issues.js";
 import { emptyLocal, type Local, localWork } from "./local.js";
 import { closesIssue, issueBranchRe, refsIssue } from "./match.js";
 import { findPrs, getPr, type Pr, type PrState } from "./pulls.js";
-import { isCheckoutOf, sameRepo, splitRepo } from "./repo.js";
+import { isCheckoutOf, sameRepo } from "./repo.js";
 import type { RestIssue, RestRepo, RestTimelineEvent } from "./types.js";
 
 /** Page ceiling for the repo's branches (100 per page). */
@@ -36,7 +36,6 @@ export interface WorkPr {
 export interface WorkBranch {
   name: string;
   remote: boolean;
-  linked: boolean;
   merged: boolean;
 }
 
@@ -61,7 +60,6 @@ export interface WorkOutput {
   repo: string;
   defaultBranch: string | null;
   offline?: true;
-  graphql?: false;
   issues: IssueEntry[];
 }
 
@@ -69,7 +67,6 @@ export interface WorkOutput {
 interface Context {
   repo: string;
   branches: string[];
-  linked: Map<number, string[]> | null;
   local: Record<string, Local>;
   warnings: string[];
 }
@@ -83,42 +80,6 @@ const uniqueByNumber = (prs: Pr[]) =>
   [...new Map(prs.map((pr) => [pr.number, pr])).values()].sort(
     (a, b) => a.number - b.number,
   );
-
-/**
- * Linked branches of each issue, in a single GraphQL query.
- * @param repo - `owner/repo`.
- * @param numbers - The issues.
- * @returns The branches per issue, or null if GraphQL does not answer.
- */
-async function linkedBranches(
-  repo: string,
-  numbers: number[],
-): Promise<Map<number, string[]> | null> {
-  const { owner, name } = splitRepo(repo);
-  const fields = numbers
-    .map(
-      (n) =>
-        `i${n}: issue(number: ${n}) { linkedBranches(first: 20) { nodes { ref { name } } } }`,
-    )
-    .join(" ");
-  const data = await graphql(
-    `query LinkedBranches($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { ${fields} } }`,
-    { owner, name },
-  );
-  if (data === null) return null;
-  const repository = (data.repository ?? {}) as Record<
-    string,
-    { linkedBranches?: { nodes?: { ref?: { name?: string } | null }[] } } | null
-  >;
-  return new Map(
-    numbers.map((n) => [
-      n,
-      (repository[`i${n}`]?.linkedBranches?.nodes ?? []).flatMap((node) =>
-        node.ref?.name ? [node.ref.name] : [],
-      ),
-    ]),
-  );
-}
 
 /**
  * PRs of this repo that name the issue in its timeline.
@@ -186,7 +147,6 @@ async function branchPrs(
  * @param issue - The issue.
  * @param refs - Repo branches with `<n>-`.
  * @param found - PRs of those branches (`byRef`) and of the timeline (`byTimeline`).
- * @param linked - Linked branches.
  * @param here - Local state.
  * @returns The work.
  */
@@ -194,7 +154,6 @@ function assemble(
   issue: RestIssue,
   refs: string[],
   found: { byRef: Pr[]; byTimeline: Pr[] },
-  linked: string[],
   here: Local,
 ): IssueWork {
   const n = issue.number;
@@ -213,7 +172,6 @@ function assemble(
   );
   const names = [
     ...new Set([
-      ...linked,
       ...refs,
       ...work.filter((pr) => !pr.fork).map((pr) => pr.branch),
       ...here.branches,
@@ -236,7 +194,6 @@ function assemble(
       branches: names.map((name) => ({
         name,
         remote: refs.includes(name),
-        linked: linked.includes(name),
         merged: merged.has(name) && !open.has(name),
       })),
     },
@@ -267,7 +224,6 @@ async function issueEntry(ctx: Context, n: number): Promise<IssueEntry> {
     issue,
     refs,
     { byRef, byTimeline },
-    ctx.linked?.get(n) ?? [],
     ctx.local[String(n)] ?? emptyLocal(),
   );
 }
@@ -322,7 +278,6 @@ export async function readWork(
   const ctx: Context = {
     repo,
     branches: (branches.items as { name: string }[]).map((b) => b.name),
-    linked: await linkedBranches(repo, wanted),
     local,
     warnings,
   };
@@ -331,7 +286,6 @@ export async function readWork(
   const output: WorkOutput = {
     repo,
     defaultBranch: info.default_branch,
-    ...(ctx.linked === null ? { graphql: false as const } : {}),
     issues,
   };
   return { output, warnings };

@@ -1,7 +1,7 @@
 /**
  * @file What a PR got back over REST: the checks of its head, its reviews and the comments
  * on its diff grouped by thread, and replying to one. Marking threads as resolved only
- * exists in GraphQL, so it is not here.
+ * exists outside REST, so it is not here.
  */
 import { failure, ghApi, ghGetAll, GitHubError } from "./gh.js";
 import { toComment, type Comment } from "./issues.js";
@@ -170,7 +170,7 @@ export interface Thread extends Comment {
  * The comments on a PR's diff grouped by thread, oldest first. GitHub links every reply
  * to the thread's first comment; a reply whose first comment was deleted becomes its own
  * thread. `outdated` means the line no longer exists in the current diff (`line` is then
- * the original one). Whether a thread is resolved only exists in GraphQL.
+ * the original one). Whether a thread is resolved only exists outside REST.
  * @param repo - `owner/repo`.
  * @param n - PR number.
  * @returns The threads and whether the page ceiling cut the list short.

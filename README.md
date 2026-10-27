@@ -33,6 +33,8 @@ github-rest pr checks <n> | pr reviews <n> | pr comments <n>
 github-rest pr reply <n> <comment-id> (--body <text> | --body-file <file>)
 ```
 
+- **`issue-work start`** creates the branch with REST and prints `{repo, branch, base, oid}`.
+  It does not link it in the issue's Development panel: that only exists in GraphQL.
 - **Labels and assignees** repeat the flag or take commas (`--label bug,area:ui`).
 - **`issue create`** prints `{number, url}`; `pr create` prints only the URL. GitHub creates
   a label that does not exist (gh fails instead) and drops, with a warning here, the labels
@@ -75,10 +77,10 @@ the local state and, to do so, runs `git fetch --prune` and `git worktree prune`
 ## `issue-work --json`
 
 ```text
-{repo, defaultBranch, [offline: true], [graphql: false], issues: [
+{repo, defaultBranch, [offline: true], issues: [
   {number, state, assignees: [login],
    work: {prs: [{number, state: OPEN|CLOSED|MERGED, draft, branch, head, fork, closes}],
-          branches: [{name, remote, linked, merged}]},
+          branches: [{name, remote, merged}]},
    mentions: [{number, state, branch}],
    local: {branches: [name], worktrees: [{path, branch}]}}
   | {number, error: "NOT_FOUND"}]}
@@ -89,7 +91,7 @@ the local state and, to do so, runs `git fetch --prune` and `git worktree prune`
   `Closes`, `Fixes`, `Resolves`, `Part of` or `Parte de #n` (`Parte de` is the Spanish form
   of `Part of`), with or without a colon (`Closes: #n`). `closes` is true if it closes the
   issue with those words.
-- `linked` comes from GraphQL; if GitHub does not answer it, the output has `graphql: false`.
+- Branches linked in the issue's Development panel are not read: they only exist in GraphQL.
 - Offline: `{repo, defaultBranch: null, offline: true, issues: [{number, local}]}`.
 
 ## Development

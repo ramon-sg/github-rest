@@ -1,10 +1,11 @@
 /**
- * @file `issue-work start`: creates a branch for the issue on GitHub, linked (GraphQL) if
- * GitHub allows it and otherwise over REST, unlinked. If the directory is a checkout of the
- * repo, it fetches it into `refs/remotes/origin/<branch>` without creating a local branch.
+ * @file `issue-work start`: creates a branch for the issue on GitHub over REST. It is not
+ * linked to the issue (the Development panel): only the other API links branches. If the
+ * directory is a checkout of the repo, it fetches it into `refs/remotes/origin/<branch>`
+ * without creating a local branch.
  */
 import { spawnSync } from "node:child_process";
-import { failure, ghApi, graphql, GitHubError } from "./gh.js";
+import { failure, ghApi, GitHubError } from "./gh.js";
 import { fetchIssue } from "./issues.js";
 import { isCheckoutOf } from "./repo.js";
 import type { RestRepo } from "./types.js";
@@ -15,13 +16,7 @@ export interface StartResult {
   branch: string;
   base: string;
   oid: string;
-  linked: boolean;
 }
-
-/** Mutation that creates the branch already linked to the issue. */
-const CREATE_LINKED = `mutation CreateLinkedBranch($issueId: ID!, $repositoryId: ID!, $oid: GitObjectID!, $name: String!) {
-  createLinkedBranch(input: { issueId: $issueId, repositoryId: $repositoryId, oid: $oid, name: $name }) { linkedBranch { ref { name } } }
-}`;
 
 /**
  * The commit of a GitHub branch. Each segment of the name is encoded (`#` or `%` would
@@ -41,30 +36,17 @@ async function branchOid(repo: string, branch: string): Promise<string | null> {
 }
 
 /**
- * Creates the branch linked to the issue; if GraphQL does not answer, over REST unlinked.
- * @param repo - The repo, with its node_id.
- * @param issueId - node_id of the issue.
+ * Creates the branch over REST.
+ * @param repo - The repo.
  * @param branch - The branch.
  * @param oid - From which commit.
- * @returns Whether it ended up linked.
- * @throws GitHubError if it could not be created either way.
+ * @throws GitHubError if it could not be created.
  */
 async function createBranch(
   repo: RestRepo,
-  issueId: string,
   branch: string,
   oid: string,
-): Promise<boolean> {
-  const data = await graphql(CREATE_LINKED, {
-    issueId,
-    repositoryId: repo.node_id,
-    oid,
-    name: branch,
-  });
-  const linked = (
-    data?.createLinkedBranch as { linkedBranch?: unknown } | null | undefined
-  )?.linkedBranch;
-  if (linked !== undefined && linked !== null) return true;
+): Promise<void> {
   const res = await ghApi("POST", `repos/${repo.full_name}/git/refs`, {
     ref: `refs/heads/${branch}`,
     sha: oid,
@@ -74,7 +56,6 @@ async function createBranch(
       res,
       `could not create branch ${branch} in ${repo.full_name} (no push permission?)`,
     );
-  return false;
 }
 
 /**
@@ -99,7 +80,7 @@ export async function startBranch(
   const info = repoRes.data as RestRepo;
   if ((await branchOid(repo, branch)) !== null)
     throw new GitHubError(
-      `branch ${branch} already exists in ${repo}: GitHub only links new branches.`,
+      `branch ${branch} already exists in ${repo}.`,
       422,
     );
   const issue = await fetchIssue(repo, n);
@@ -109,11 +90,7 @@ export async function startBranch(
   const oid = await branchOid(repo, base);
   if (oid === null)
     throw new GitHubError(`base branch ${base} does not exist in ${repo}.`, 404);
-  const linked = await createBranch(info, issue.node_id, branch, oid);
-  if (!linked)
-    warnings.push(
-      `could not link the branch to issue #${n}; created it unlinked.`,
-    );
+  await createBranch(info, branch, oid);
   const cwd = opts.cwd ?? process.cwd();
   if (isCheckoutOf(repo, cwd)) {
     const fetch = spawnSync(
@@ -131,5 +108,5 @@ export async function startBranch(
         "created the branch on GitHub, but could not fetch it with git fetch.",
       );
   }
-  return { result: { repo, branch, base, oid, linked }, warnings };
+  return { result: { repo, branch, base, oid }, warnings };
 }

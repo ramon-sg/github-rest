@@ -3,8 +3,6 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { issue, REPO_BODY, sandbox } from "./helpers.mjs";
 
-const LINK = "POST graphql CreateLinkedBranch";
-
 function base(s) {
   const oid = s.git(s.origin, "rev-parse", "main");
   s.route("GET repos/acme/widgets", REPO_BODY);
@@ -12,14 +10,11 @@ function base(s) {
   s.route("GET repos/acme/widgets/git/ref/heads/main", {
     object: { sha: oid },
   });
-  s.route(LINK, {
-    data: { createLinkedBranch: { linkedBranch: { ref: { name: "x" } } } },
-  });
   s.route("POST repos/acme/widgets/git/refs", { ref: "x" }, 201);
   return oid;
 }
 
-test("creates the linked branch and fetches it, with no local branch", () => {
+test("creates the branch over REST and fetches it, with no local branch", () => {
   const s = sandbox();
   const oid = base(s);
   const r = s.run(s.repo, [
@@ -35,12 +30,11 @@ test("creates the linked branch and fetches it, with no local branch", () => {
     branch: "feat/42-new",
     base: "main",
     oid,
-    linked: true,
   });
-  const link = s.calls().find((c) => c.path === "graphql");
+  const create = s.calls().find((c) => c.method === "POST");
   assert.deepEqual(
-    [link.body.variables.issueId, link.body.variables.repositoryId],
-    ["I_42", "R_1"],
+    [create.path, create.body],
+    ["repos/acme/widgets/git/refs", { ref: "refs/heads/feat/42-new", sha: oid }],
   );
   assert.equal(s.git(s.origin, "rev-parse", "feat/42-new"), oid);
   assert.equal(
@@ -128,25 +122,9 @@ test("an issue that does not exist: exits with 1", () => {
   assert.match(r.err, /issue #42 does not exist/);
 });
 
-test("without GraphQL: creates it over REST unlinked; if that fails too, exits with 1", () => {
+test("exits with 1 if GitHub does not let it create the branch", () => {
   const s = sandbox();
-  const oid = base(s);
-  s.route(
-    LINK,
-    { message: "GitHub GraphQL is not available from Claude Code sessions" },
-    403,
-  );
-  const r = s.run(s.repo, [
-    "issue-work",
-    "start",
-    "42",
-    "--branch",
-    "feat/42-unlinked",
-  ]);
-  assert.equal(r.status, 0, r.err);
-  assert.equal(r.json().linked, false);
-  assert.match(r.err, /created it unlinked/);
-  assert.equal(s.git(s.origin, "rev-parse", "feat/42-unlinked"), oid);
+  base(s);
   s.route(
     "POST repos/acme/widgets/git/refs",
     { message: "Resource not accessible" },

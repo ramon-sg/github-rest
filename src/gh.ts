@@ -1,7 +1,7 @@
 /**
  * @file GitHub transport: every call goes through `gh api`, which in Claude's cloud is the
- * only thing the proxy authenticates and on a regular machine uses the `gh` session. GraphQL
- * only through `graphql()`, which is never required: in the cloud the proxy answers it 403.
+ * only thing the proxy authenticates and on a regular machine uses the `gh` session. Only
+ * REST endpoints: the cloud's proxy answers 403 to the other API.
  */
 import { spawn } from "node:child_process";
 
@@ -164,23 +164,4 @@ export async function ghGetAll(
     if (list.length < PAGE_SIZE) return { items, truncated: false };
   }
   return { items, truncated: true };
-}
-
-/**
- * Optional GraphQL: the response's `data`, or null if GitHub does not answer. With partial
- * errors (an issue that does not exist) it returns what came back.
- * @param query - The query or mutation, with an operation name.
- * @param variables - Its variables.
- * @returns The data, or null.
- * @example await graphql("query Q { viewer { login } }", {})
- */
-export async function graphql(
-  query: string,
-  variables: Record<string, unknown>,
-): Promise<Record<string, unknown> | null> {
-  const res = await ghApi("POST", "graphql", { query, variables });
-  const data = (res.data as { data?: unknown } | null)?.data;
-  return data !== null && typeof data === "object"
-    ? (data as Record<string, unknown>)
-    : null;
 }

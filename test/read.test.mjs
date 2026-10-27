@@ -10,8 +10,6 @@ import {
   sandbox,
 } from "./helpers.mjs";
 
-const LINKED = "POST graphql LinkedBranches";
-
 function base(s, n = 42) {
   s.route("GET repos/acme/widgets", REPO_BODY);
   s.route(`GET repos/acme/widgets/issues/${n}`, issue(n));
@@ -43,13 +41,6 @@ test("work, mentions and branches", () => {
     { event: "labeled" },
   ]);
   s.route(headQuery("feat/42-open"), [prs[0]]);
-  s.route(LINKED, {
-    data: {
-      repository: {
-        i42: { linkedBranches: { nodes: [{ ref: { name: "42-linked" } }] } },
-      },
-    },
-  });
   const r = s.run(s.repo, ["issue-work", "42", "--json"]);
   assert.equal(r.status, 0, r.err);
   const out = r.json();
@@ -57,8 +48,8 @@ test("work, mentions and branches", () => {
   const pr = (n) => i.work.prs.find((p) => p.number === n);
   const names = (f) => i.work.branches.filter(f).map((b) => b.name);
   assert.deepEqual(
-    [out.repo, out.defaultBranch, out.offline, out.graphql],
-    ["acme/widgets", "main", undefined, undefined],
+    [out.repo, out.defaultBranch, out.offline],
+    ["acme/widgets", "main", undefined],
   );
   assert.deepEqual([i.state, i.assignees], ["OPEN", ["ana"]]);
   assert.deepEqual(
@@ -77,16 +68,17 @@ test("work, mentions and branches", () => {
   ]);
   assert.deepEqual(
     names(() => true),
-    ["42-linked", "chore/ci", "feat/42-dropped", "feat/42-old", "feat/42-open"],
+    ["chore/ci", "feat/42-dropped", "feat/42-old", "feat/42-open"],
   );
   assert.deepEqual(
     names((b) => b.remote),
     ["feat/42-open"],
   );
-  assert.deepEqual(
-    names((b) => b.linked),
-    ["42-linked"],
-  );
+  assert.deepEqual(Object.keys(i.work.branches[0]).sort(), [
+    "merged",
+    "name",
+    "remote",
+  ]);
   assert.deepEqual(
     names((b) => b.merged),
     ["feat/42-old"],
@@ -95,19 +87,6 @@ test("work, mentions and branches", () => {
     !s.calls().some((c) => c.path === "repos/acme/widgets/pulls/99"),
     "does not request the PR of another repo",
   );
-});
-
-test("without GraphQL: graphql false and nothing linked", () => {
-  const s = sandbox();
-  base(s);
-  s.route(
-    LINKED,
-    { message: "GitHub GraphQL is not available from Claude Code sessions" },
-    403,
-  );
-  const r = s.run(s.repo, ["issue-work", "42", "--json"]);
-  assert.equal(r.status, 0, r.err);
-  assert.equal(r.json().graphql, false);
 });
 
 test("a merged branch reused by an open PR is not merged", () => {
@@ -214,7 +193,7 @@ test("truncated lists: warns and carries on", () => {
   assert.match(r.err, /branch feat\/42-a has more than 20 PRs/);
 });
 
-test("several issues: requested order, no duplicates, a single GraphQL query", () => {
+test("several issues: requested order, no duplicates", () => {
   const s = sandbox();
   base(s, 42);
   base(s, 43);
@@ -233,9 +212,6 @@ test("several issues: requested order, no duplicates, a single GraphQL query", (
     out.issues.map((i) => i.work.prs[0].number),
     [8, 7],
   );
-  const queries = s.calls().filter((c) => c.path === "graphql");
-  assert.equal(queries.length, 1);
-  assert.match(queries[0].body.query, /i42: issue\(number: 42\)/);
 });
 
 test("-R: another repo, without the local state", () => {

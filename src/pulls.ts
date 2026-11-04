@@ -57,6 +57,7 @@ export function toPr(raw: RestPull): Pr {
 export const prView = (pr: Pr) => ({
   number: pr.number,
   state: pr.state,
+  isDraft: pr.draft,
   headRefOid: pr.head,
   body: pr.body,
   url: pr.url,

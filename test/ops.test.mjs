@@ -95,6 +95,7 @@ test("pr find: the newest PR of the branch, or null", () => {
   assert.deepEqual(r.json(), {
     number: 8,
     state: "OPEN",
+    isDraft: false,
     headRefOid: "oid8",
     body: "Closes #42",
     url: "https://github.com/acme/widgets/pull/8",
@@ -111,6 +112,15 @@ test("pr view: MERGED comes from merged_at", () => {
   );
   assert.equal(s.run(s.repo, ["pr", "view", "5"]).json().state, "MERGED");
   assert.equal(s.run(s.repo, ["pr", "view", "6"]).status, 1);
+});
+
+test("pr view: isDraft says whether the PR is a draft", () => {
+  const s = sandbox();
+  s.route(
+    "GET repos/acme/widgets/pulls/7",
+    pull(7, "OPEN", "feat/42-a", "", { draft: true }),
+  );
+  assert.equal(s.run(s.repo, ["pr", "view", "7"]).json().isDraft, true);
 });
 
 test("pr create: draft via POST and the URL on stdout", () => {

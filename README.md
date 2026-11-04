@@ -49,6 +49,8 @@ github-rest pr reply <n> <comment-id> (--body <text> | --body-file <file>)
 - **`pr checks`** prints `{sha, checks: [{name, state, bucket, link, kind}]}` for the PR's
   head: the latest check runs and the commit statuses. `bucket` is `pass`, `fail`, `pending`,
   `skipping` or `cancel`, as in `gh pr checks`; it exits 0 whatever the checks say.
+- **`pr find`** and **`pr view`** print `{number, state, isDraft, headRefOid, body, url}`, the
+  fields of `gh pr view --json`.
 - **`pr comments`** groups the diff comments by thread: `[{id, user, path, line, outdated,
   body, url, createdAt, replies}]`. Whether a thread is resolved only exists in GraphQL.
 - **`pr reply`** accepts the id of any comment of the thread.

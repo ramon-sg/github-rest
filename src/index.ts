@@ -40,6 +40,14 @@ export {
   type Review,
   type Thread,
 } from "./reviews.js";
+export {
+  fieldByName,
+  type OwnerKind,
+  type ProjectField,
+  type ProjectRef,
+  projectFields,
+  projectPath,
+} from "./projects.js";
 export { InvalidRepoEnvError, resolveRepo } from "./repo.js";
 export { type StartResult, startBranch } from "./start.js";
 export {

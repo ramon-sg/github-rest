@@ -14,6 +14,7 @@ import {
 } from "./args.js";
 import { issueCommand, labelCommand } from "./issue-commands.js";
 import { prCommand } from "./pr-commands.js";
+import { projectCommand } from "./project-commands.js";
 import { startBranch } from "./start.js";
 import { readWork } from "./work.js";
 
@@ -36,6 +37,7 @@ const USAGE = `Usage:
   github-rest pr edit <n> [--body <text> | --body-file <file>] [--reopen]
   github-rest pr checks <n> | pr reviews <n> | pr comments <n> | pr commits <n>
   github-rest pr reply <n> <comment-id> (--body <text> | --body-file <file>)
+  github-rest project fields <owner> <n>
 
 Every command takes -R owner/repo. Labels and assignees also take commas (--label a,b).`;
 
@@ -96,6 +98,7 @@ export async function main(argv: string[]): Promise<number> {
   else if (group === "issue") await issueCommand(flags, rest);
   else if (group === "pr") await prCommand(flags, rest);
   else if (group === "label") await labelCommand(flags, rest);
+  else if (group === "project") await projectCommand(flags, rest);
   else
     throw new UsageError(
       group === undefined

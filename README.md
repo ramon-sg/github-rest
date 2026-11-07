@@ -31,6 +31,10 @@ github-rest pr create --head <branch> --base <branch> --title <title> (--body <t
 github-rest pr edit <n> [--body <text> | --body-file <file>] [--reopen]
 github-rest pr checks <n> | pr reviews <n> | pr comments <n> | pr commits <n>
 github-rest pr reply <n> <comment-id> (--body <text> | --body-file <file>)
+github-rest project fields <owner> <n>
+github-rest project items <owner> <n> [--field <name>…]
+github-rest project add <owner> <n> --issue <n> [-R owner/repo]
+github-rest project set <owner> <n> --issue <n> --field <name> --value <v> [-R owner/repo]
 ```
 
 - **`issue-work start`** creates the branch with REST and prints `{repo, branch, base, oid}`.
@@ -56,31 +60,65 @@ github-rest pr reply <n> <comment-id> (--body <text> | --body-file <file>)
 - **`pr reply`** accepts the id of any comment of the thread.
 - **`pr commits`** prints `[{sha, parents, message, author: {name, email, date}, committedAt}]`,
   oldest first (GitHub lists up to 250).
+- **`project …`** works on a regular machine only: in Claude's cloud it exits 3 (see
+  [GitHub Projects](#github-projects-local-and-in-claudes-cloud)). It takes the project's
+  owner (a user or an organization, found out on its own) and its number, the one in
+  `github.com/users/<owner>/projects/<n>`.
+  - **`project fields`** prints `[{id, name, type, options?}]`; `options` only for single select.
+  - **`project items`** prints `[{id, type, repo, number, state, title, values}]`, with
+    `values` by field name: numbers stay numbers, single select gives the option, lists
+    (labels, assignees) the names joined with commas. Without `--field` it reads every field.
+    A field name also matches ignoring case, if only one does.
+  - **`project add`** prints `{id, added}`; `added` is false if the issue was already there.
+  - **`project set`** finds the issue's item (adding the issue if it is not in the project) and
+    prints `{item, added, field, value}`. It writes number (with a dot for decimals), text,
+    date (`YYYY-MM-DD`) and single select (the option's name) fields; `--value ""` clears it.
+    A value the field cannot take exits 2 before writing.
+  - **Archived items** are not in `project items` (REST leaves them out and ignores
+    `q=is:archived`), and GitHub refuses to write them. `add` and `set` on an archived issue
+    exit 1 and say so. Right after an add, the list takes a few seconds to show the new item.
 
 There is no `pr merge` nor `pr ready`. Merging stays with `gh pr merge`, which Claude Code's
 auto mode reviews before it runs, and taking a PR out of draft and resolving threads only exist
 in GraphQL, which Claude's cloud blocks.
 
 JSON on stdout, warnings on stderr. Exits 0 on success, 1 if GitHub failed (or `gh` is not in
-the PATH) and 2 on bad usage. The repo comes, like in gh, from `-R`, then the `GH_REPO`
+the PATH), 2 on bad usage and 3 when a `project` command runs in Claude's cloud. The repo comes, like in gh, from `-R`, then the `GH_REPO`
 variable (`owner/repo` or `host/owner/repo`), then the directory's `origin`. The origin can
 be a GitHub URL (https, `git@`, `ssh://`) or the local git proxy of Claude's cloud
 (`http://local_proxy@127.0.0.1:<port>/git/owner/repo`).
 
-## GitHub Projects in Claude's cloud
+## GitHub Projects, local and in Claude's cloud
 
-There is no `project` command: Projects v2 can't be reached from Claude's cloud over `gh`.
-Its GitHub proxy only lets through paths under `repos/{owner}/{repo}/…` and answers 403 to the
-rest ("sessions are bound to their configured repositories"), and Projects v2 only has paths
-under `users/` and `orgs/` (and GraphQL, also blocked). A `GH_TOKEN` of your own gets the same
-403. Outside the cloud, `gh project` already works. `github-rest project …` exits 2 and
-prints the link below.
+Projects v2 goes a different way on each side:
 
-In the cloud, use GitHub's MCP server as a claude.ai connector: it is set up once per account,
-not per repo, and its traffic does not go through that proxy. **Setup, permissions and how
-an agent uses it: [docs/projects-connector.md](docs/projects-connector.md)**
+| Where | How | Why |
+|---|---|---|
+| A regular machine | `github-rest project …` (REST through your `gh` session) | |
+| Claude's cloud | The GitHub connector's tools: `projects_list`, `projects_get`, `projects_write` | Its GitHub proxy answers 403 to every Projects path |
+
+Claude Code sets `CLAUDE_CODE_REMOTE=true` in cloud sessions (claude.ai/code and scheduled
+tasks). With it, `github-rest project …` exits 3 before calling GitHub and prints the
+connector guide. Without it, a 403 that says the proxy blocked the call
+("sessions are bound to their configured repositories") also exits 3. Any other 403 (a token
+without the `project` scope) exits 1 with GitHub's message. The library throws
+`ProjectsBlockedError` in the same cases, and `inClaudeCloud()` tells where it runs.
+
+For a skill or an agent that has to work on both sides:
+
+1. If `CLAUDE_CODE_REMOTE` is `true`, use the connector's tools. Otherwise run
+   `github-rest project …`. (Running the command and switching on exit 3 does the same.)
+2. In the cloud, if the connector's tools are not there, stop the Projects part and tell the
+   user the GitHub connector is missing, with the link to its guide.
+
+The connector is set up once per claude.ai account: **[docs/projects-connector.md](docs/projects-connector.md)**
 (`https://github.com/ramon-sg/github-rest/blob/main/docs/projects-connector.md`, the link to
 give a user or an agent when the connector is missing).
+
+Why the cloud can't use REST: its GitHub proxy only lets through paths under
+`repos/{owner}/{repo}/…` and answers 403 to the rest ("sessions are bound to their configured
+repositories"). Projects v2 only has paths under `users/` and `orgs/` (and GraphQL, also
+blocked), and a `GH_TOKEN` of your own gets the same 403.
 
 `scripts/probe-projects.sh` calls the Projects REST endpoints on a test project (it needs a
 number field named `Probe`) and puts every value back. This is what it measured:

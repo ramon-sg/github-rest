@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 /**
  * @file `github-rest` CLI: what an issue workflow uses from GitHub, over REST only. JSON on
- * stdout, warnings on stderr; exits 0 on success, 1 if GitHub failed and 2 on bad usage.
+ * stdout, warnings on stderr; exits 0 on success, 1 if GitHub failed, 2 on bad usage and 3
+ * when a `project` command runs in Claude's cloud, where only the GitHub connector reaches
+ * Projects.
  */
 import { spawnSync } from "node:child_process";
 import {
@@ -14,6 +16,8 @@ import {
 } from "./args.js";
 import { issueCommand, labelCommand } from "./issue-commands.js";
 import { prCommand } from "./pr-commands.js";
+import { ProjectsBlockedError } from "./projects.js";
+import { projectCommand } from "./project-commands.js";
 import { startBranch } from "./start.js";
 import { readWork } from "./work.js";
 
@@ -36,12 +40,12 @@ const USAGE = `Usage:
   github-rest pr edit <n> [--body <text> | --body-file <file>] [--reopen]
   github-rest pr checks <n> | pr reviews <n> | pr comments <n> | pr commits <n>
   github-rest pr reply <n> <comment-id> (--body <text> | --body-file <file>)
+  github-rest project fields <owner> <n>
+  github-rest project items <owner> <n> [--field <name>...]
+  github-rest project add <owner> <n> --issue <n>
+  github-rest project set <owner> <n> --issue <n> --field <name> --value <v>
 
 Every command takes -R owner/repo. Labels and assignees also take commas (--label a,b).`;
-
-/** Guide to set up GitHub Projects through the GitHub connector, for Claude's cloud. */
-export const PROJECTS_GUIDE =
-  "https://github.com/ramon-sg/github-rest/blob/main/docs/projects-connector.md";
 
 /**
  * `issue-work start <n> --branch <branch> [--base <branch>]`.
@@ -100,12 +104,7 @@ export async function main(argv: string[]): Promise<number> {
   else if (group === "issue") await issueCommand(flags, rest);
   else if (group === "pr") await prCommand(flags, rest);
   else if (group === "label") await labelCommand(flags, rest);
-  // WHY: Projects v2 can't be reached over REST from Claude's cloud; an agent that tries this
-  // command gets pointed to the connector guide instead of a bare "unknown command".
-  else if (group === "project")
-    throw new UsageError(
-      `there is no project command: in Claude's cloud, GitHub Projects goes through the GitHub connector. Set it up: ${PROJECTS_GUIDE}`,
-    );
+  else if (group === "project") await projectCommand(flags, rest);
   else
     throw new UsageError(
       group === undefined
@@ -120,6 +119,11 @@ main(process.argv.slice(2)).then(
     process.exitCode = code;
   },
   (error: unknown) => {
+    if (error instanceof ProjectsBlockedError) {
+      process.stderr.write(`github-rest: ${error.message}\n`);
+      process.exitCode = 3;
+      return;
+    }
     if (error instanceof UsageError) {
       process.stderr.write(`github-rest: ${error.message}\n${USAGE}\n`);
       process.exitCode = 2;

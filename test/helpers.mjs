@@ -130,8 +130,8 @@ export function sandbox() {
     origin,
     outside,
     git,
-    route(key, body, status = 200) {
-      routes[key] = { status, body };
+    route(key, body, status = 200, headers = {}) {
+      routes[key] = { status, body, headers };
     },
     page(path, items, page = 1) {
       routes[
@@ -161,6 +161,8 @@ export function sandbox() {
       const base = { ...process.env };
       // GH_REPO from the outer shell would change which repo every test uses.
       delete base.GH_REPO;
+      // So does a Claude cloud session: project commands stop before calling GitHub there.
+      delete base.CLAUDE_CODE_REMOTE;
       const r = spawnSync(process.execPath, [CLI, ...args], {
         cwd,
         encoding: "utf8",

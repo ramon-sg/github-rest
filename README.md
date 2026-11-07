@@ -115,6 +115,13 @@ For a skill or an agent that has to work on both sides:
    the Projects part and tell the user the GitHub connector is missing, with the link to its
    guide.
 
+To write in a project when something happens on GitHub (an issue is closed, a PR is merged),
+use a GitHub Action instead of the agent: issues are usually closed by a merge or by a person,
+when no agent session is running, and Actions run outside the cloud's proxy. The Action needs
+a secret with a classic token with `project` (`GITHUB_TOKEN` can't reach Projects v2) and can
+run `npx @ramon-sg/github-rest project set …` with `GH_TOKEN` set to it. More in
+[agent-cloud-kit#5](https://github.com/ramon-sg/agent-cloud-kit/issues/5).
+
 The connector is set up once per claude.ai account: **[docs/projects-connector.md](docs/projects-connector.md)**
 (`https://github.com/ramon-sg/github-rest/blob/main/docs/projects-connector.md`, the link to
 give a user or an agent when the connector is missing).

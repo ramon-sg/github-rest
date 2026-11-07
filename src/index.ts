@@ -18,6 +18,7 @@ export {
 } from "./issues.js";
 export { createLabel, type Label, listLabels, type NewLabel } from "./labels.js";
 export type { Local } from "./local.js";
+export { closesIssue, issueBranchRe, prIssues, refsIssue } from "./match.js";
 export {
   createPr,
   findPr,

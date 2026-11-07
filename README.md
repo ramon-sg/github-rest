@@ -161,6 +161,17 @@ const { output, warnings } = await readWork("acme/widgets", [42]);
 When the working directory (or `opts.cwd`) is a checkout of that repo, `readWork` also reads
 the local state and, to do so, runs `git fetch --prune` and `git worktree prune` there.
 
+`prIssues(branch, body)` says which issues a PR names, with the same rules as
+`issue-work --json` (below): the number of its branch and the `#n` of its closing or
+`Part of` / `Parte de` phrases, without repeats and in ascending order. The per-issue checks
+`issueBranchRe(n)`, `closesIssue(body, n)` and `refsIssue(body, n)` are exported too, and
+always agree with `prIssues`.
+
+```ts
+import { prIssues } from "@ramon-sg/github-rest";
+prIssues("feat/19-split-hours", "Closes #19\nCloses #6"); // [6, 19]
+```
+
 ## `issue-work --json`
 
 ```text

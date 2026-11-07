@@ -3,6 +3,7 @@
  * an issue and writing a field. The owner can be a user or an organization.
  */
 import { failure, GitHubError, ghApi, ghGetCursor } from "./gh.js";
+import { sameRepo, splitRepo } from "./repo.js";
 import type {
   RestProjectField,
   RestProjectFieldValue,
@@ -206,14 +207,29 @@ export async function projectItems(
   ref: ProjectRef,
   opts: { fields?: string[] } = {},
 ): Promise<{ items: ProjectItem[]; truncated: boolean }> {
-  const path = await projectPath(ref);
+  return itemsAt(await projectPath(ref), ref, opts.fields);
+}
+
+/**
+ * The items of a project at a known path.
+ * @param path - From `projectPath`.
+ * @param ref - The project, for messages.
+ * @param names - Fields to read: all if undefined, none if empty.
+ * @returns The items and whether the list was cut short.
+ * @throws GitHubError if GitHub fails or a field does not exist.
+ */
+async function itemsAt(
+  path: string,
+  ref: ProjectRef,
+  names: string[] | undefined,
+): Promise<{ items: ProjectItem[]; truncated: boolean }> {
   let ids: number[] = [];
-  if (opts.fields === undefined || opts.fields.length > 0) {
+  if (names === undefined || names.length > 0) {
     const fields = await fieldsAt(path, projectName(ref));
     ids =
-      opts.fields === undefined
+      names === undefined
         ? fields.map((field) => field.id)
-        : opts.fields.map((name) => fieldByName(fields, name).id);
+        : names.map((name) => fieldByName(fields, name).id);
   }
   const query = ids.map((id) => `fields[]=${id}`).join("&");
   const { items, truncated } = await ghGetCursor(
@@ -222,4 +238,76 @@ export async function projectItems(
     `the items of ${projectName(ref)}`,
   );
   return { items: (items as RestProjectItem[]).map(toItem), truncated };
+}
+
+/** An issue of a repo. */
+export interface IssueRef {
+  repo: string;
+  number: number;
+}
+
+/**
+ * The item of an issue among the listed (not archived) items of a project.
+ * @param path - From `projectPath`.
+ * @param ref - The project, for messages.
+ * @param issue - The issue.
+ * @returns The item, or undefined if the list does not have it.
+ * @throws GitHubError if GitHub fails.
+ */
+async function findItem(
+  path: string,
+  ref: ProjectRef,
+  issue: IssueRef,
+): Promise<ProjectItem | undefined> {
+  const { items } = await itemsAt(path, ref, []);
+  return items.find(
+    (item) =>
+      item.number === issue.number &&
+      item.repo !== null &&
+      sameRepo(item.repo, issue.repo),
+  );
+}
+
+/**
+ * Whether a 422 from GitHub means the issue is already in the project.
+ * @param data - The body of the response.
+ * @returns True if it already is.
+ */
+const alreadyThere = (data: unknown): boolean =>
+  /already exists/i.test(String((data as { message?: unknown } | null)?.message ?? ""));
+
+/**
+ * Adds an issue to a project. If it is already there, it gives its item; GitHub answers 422
+ * then, without the id, so the item is looked up in the list.
+ * @param ref - The project.
+ * @param issue - The issue: `owner/repo` and number.
+ * @returns The item id and whether it was added now.
+ * @throws GitHubError if GitHub fails, or (422) if the issue is in the project but not in its
+ *   list: archived items are not listed and cannot be written, and the list lags a few
+ *   seconds behind an add.
+ * @example await addProjectItem({ owner: "acme", number: 3 }, { repo: "acme/widgets", number: 7 })
+ */
+export async function addProjectItem(
+  ref: ProjectRef,
+  issue: IssueRef,
+): Promise<{ id: number; added: boolean }> {
+  const path = await projectPath(ref);
+  const { owner, name } = splitRepo(issue.repo);
+  const res = await ghApi("POST", `${path}/items`, {
+    type: "Issue",
+    owner,
+    repo: name,
+    number: issue.number,
+  });
+  const what = `issue ${issue.repo}#${issue.number}`;
+  if (res.ok) return { id: (res.data as { id: number }).id, added: true };
+  if (!(res.status === 422 && alreadyThere(res.data)))
+    throw failure(res, `could not add ${what} to ${projectName(ref)}`);
+  const found = await findItem(path, ref, issue);
+  if (found === undefined)
+    throw new GitHubError(
+      `${what} is already in ${projectName(ref)} but not in its item list: it is archived (unarchive it first) or was added seconds ago (try again)`,
+      422,
+    );
+  return { id: found.id, added: false };
 }

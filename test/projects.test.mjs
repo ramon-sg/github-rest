@@ -203,3 +203,51 @@ test("project items: repository and list values read as text", () => {
   assert.equal(r.status, 0, r.err);
   assert.deepEqual(r.json()[0].values, { Repository: "acme/widgets", Labels: "bug, area:ui" });
 });
+
+const EXISTS = { message: "Content already exists in this project", status: "422" };
+
+test("project add: posts the issue of -R and prints the item id", () => {
+  const s = sandbox();
+  user(s);
+  s.route(`POST ${P}/items`, { id: 900, content_type: "Issue" }, 201);
+  const r = s.run(s.repo, ["project", "add", "acme", "3", "--issue", "7", "-R", "other/thing"]);
+  assert.equal(r.status, 0, r.err);
+  assert.deepEqual(r.json(), { id: 900, added: true });
+  assert.deepEqual(s.calls().at(-1), {
+    method: "POST",
+    path: `${P}/items`,
+    body: { type: "Issue", owner: "other", repo: "thing", number: 7 },
+  });
+});
+
+test("project add: an issue already in the project gives its item", () => {
+  const s = sandbox();
+  user(s);
+  s.route(`POST ${P}/items`, EXISTS, 422);
+  s.route(`GET ${P}/items?per_page=100`, [item(500, 7, {}, "other/repo"), item(501, 7)]);
+  const r = s.run(s.repo, ["project", "add", "acme", "3", "--issue", "7"]);
+  assert.equal(r.status, 0, r.err);
+  assert.deepEqual(r.json(), { id: 501, added: false });
+});
+
+test("project add: an issue archived in the project exits 1 and says so", () => {
+  const s = sandbox();
+  user(s);
+  s.route(`POST ${P}/items`, EXISTS, 422);
+  s.route(`GET ${P}/items?per_page=100`, []);
+  const r = s.run(s.repo, ["project", "add", "acme", "3", "--issue", "7"]);
+  assert.equal(r.status, 1);
+  assert.match(
+    r.err,
+    /issue acme\/widgets#7 is already in project acme\/3 but not in its item list: it is archived \(unarchive it first\) or was added seconds ago \(try again\)/,
+  );
+});
+
+test("project add: without --issue exits 2", () => {
+  const s = sandbox();
+  for (const issueArg of [[], ["--issue", "x"]]) {
+    const r = s.run(s.repo, ["project", "add", "acme", "3", ...issueArg]);
+    assert.equal(r.status, 2);
+    assert.deepEqual(s.calls(), []);
+  }
+});

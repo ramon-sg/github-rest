@@ -41,8 +41,10 @@ export {
   type Thread,
 } from "./reviews.js";
 export {
+  addProjectItem,
   type FieldValue,
   fieldByName,
+  type IssueRef,
   type OwnerKind,
   type ProjectField,
   type ProjectItem,

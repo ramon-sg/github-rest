@@ -39,6 +39,7 @@ const USAGE = `Usage:
   github-rest pr reply <n> <comment-id> (--body <text> | --body-file <file>)
   github-rest project fields <owner> <n>
   github-rest project items <owner> <n> [--field <name>...]
+  github-rest project add <owner> <n> --issue <n>
 
 Every command takes -R owner/repo. Labels and assignees also take commas (--label a,b).`;
 

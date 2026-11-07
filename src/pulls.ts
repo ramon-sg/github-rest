@@ -2,9 +2,9 @@
  * @file PRs over REST: read, find by branch, create and edit, with the state as `gh pr view`
  * (`OPEN`, `CLOSED`, `MERGED`).
  */
-import { failure, ghApi } from "./gh.js";
+import { failure, ghApi, ghGetAll } from "./gh.js";
 import { sameRepo, splitRepo } from "./repo.js";
-import type { RestPull } from "./types.js";
+import type { RestPrCommit, RestPull } from "./types.js";
 
 /** State of a PR as `gh pr view` gives it. */
 export type PrState = "OPEN" | "CLOSED" | "MERGED";
@@ -169,4 +169,45 @@ export async function updatePr(
 ): Promise<void> {
   const res = await ghApi("PATCH", `repos/${repo}/pulls/${n}`, change);
   if (!res.ok) throw failure(res, `could not edit PR #${n}`);
+}
+
+/** A commit of a PR: what it says, who wrote it and when. */
+export interface PrCommit {
+  sha: string;
+  parents: string[];
+  message: string;
+  author: { name: string; email: string; date: string } | null;
+  committedAt: string | null;
+}
+
+/** Pages of commits read at most: GitHub lists up to 250 commits of a PR. */
+const MAX_COMMIT_PAGES = 3;
+
+/**
+ * The commits of a PR, oldest first.
+ * @param repo - `owner/repo`.
+ * @param n - PR number.
+ * @returns The commits and whether the list was cut short.
+ * @throws GitHubError if GitHub fails or the PR does not exist.
+ * @example await prCommits("acme/widgets", 7)
+ */
+export async function prCommits(
+  repo: string,
+  n: number,
+): Promise<{ commits: PrCommit[]; truncated: boolean }> {
+  const { items, truncated } = await ghGetAll(
+    `repos/${repo}/pulls/${n}/commits`,
+    MAX_COMMIT_PAGES,
+    `the commits of PR #${n}`,
+  );
+  return {
+    commits: (items as RestPrCommit[]).map((raw) => ({
+      sha: raw.sha,
+      parents: raw.parents.map((parent) => parent.sha),
+      message: raw.commit.message,
+      author: raw.commit.author,
+      committedAt: raw.commit.committer?.date ?? null,
+    })),
+    truncated,
+  };
 }

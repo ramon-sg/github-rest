@@ -1,8 +1,8 @@
 # github-rest
 
 What an issue workflow uses from GitHub (read, list, create and edit issues and their work,
-create the branch, manage labels, find, open and edit PRs, read their checks, reviews and
-comments, reply), **over REST only** with `gh api`. It works where GraphQL is
+create the branch, manage labels, find, open and edit PRs, read their checks, reviews,
+comments and commits, reply), **over REST only** with `gh api`. It works where GraphQL is
 blocked: in Claude's cloud, the GitHub proxy answers 403 to all GraphQL (`gh issue`,
 `gh pr`) and lets `gh api` through with REST, with no token of its own.
 
@@ -29,7 +29,7 @@ github-rest label list | label create <name> [--color <hex>] [--description <tex
 github-rest pr find <branch> | pr view <n>
 github-rest pr create --head <branch> --base <branch> --title <title> (--body <text> | --body-file <file>) [--draft]
 github-rest pr edit <n> [--body <text> | --body-file <file>] [--reopen]
-github-rest pr checks <n> | pr reviews <n> | pr comments <n>
+github-rest pr checks <n> | pr reviews <n> | pr comments <n> | pr commits <n>
 github-rest pr reply <n> <comment-id> (--body <text> | --body-file <file>)
 ```
 
@@ -54,6 +54,8 @@ github-rest pr reply <n> <comment-id> (--body <text> | --body-file <file>)
 - **`pr comments`** groups the diff comments by thread: `[{id, user, path, line, outdated,
   body, url, createdAt, replies}]`. Whether a thread is resolved only exists in GraphQL.
 - **`pr reply`** accepts the id of any comment of the thread.
+- **`pr commits`** prints `[{sha, parents, message, author: {name, email, date}, committedAt}]`,
+  oldest first (GitHub lists up to 250).
 
 There is no `pr merge` nor `pr ready`. Merging stays with `gh pr merge`, which Claude Code's
 auto mode reviews before it runs, and taking a PR out of draft and resolving threads only exist
@@ -64,6 +66,40 @@ the PATH) and 2 on bad usage. The repo comes, like in gh, from `-R`, then the `G
 variable (`owner/repo` or `host/owner/repo`), then the directory's `origin`. The origin can
 be a GitHub URL (https, `git@`, `ssh://`) or the local git proxy of Claude's cloud
 (`http://local_proxy@127.0.0.1:<port>/git/owner/repo`).
+
+## GitHub Projects in Claude's cloud
+
+There is no `project` command: Projects v2 can't be reached from Claude's cloud over `gh`.
+Its GitHub proxy only lets through paths under `repos/{owner}/{repo}/…` and answers 403 to the
+rest ("sessions are bound to their configured repositories"), and Projects v2 only has paths
+under `users/` and `orgs/` (and GraphQL, also blocked). A `GH_TOKEN` of your own gets the same
+403. Outside the cloud, `gh project` already works. `github-rest project …` exits 2 and
+prints the link below.
+
+In the cloud, use GitHub's MCP server as a claude.ai connector: it is set up once per account,
+not per repo, and its traffic does not go through that proxy. **Setup, permissions and how
+an agent uses it: [docs/projects-connector.md](docs/projects-connector.md)**
+(`https://github.com/ramon-sg/github-rest/blob/main/docs/projects-connector.md`, the link to
+give a user or an agent when the connector is missing).
+
+`scripts/probe-projects.sh` calls the Projects REST endpoints on a test project (it needs a
+number field named `Probe`) and puts every value back. This is what it measured:
+
+```bash
+scripts/probe-projects.sh <owner> <project-n> <repo> <issue-n> <pr-n> [<archived-item-id>]
+```
+
+| Endpoint | Local (2026-11-07) | Claude's cloud (2026-11-07) |
+|---|---|---|
+| `GET …/projectsV2/{n}/fields` | 200 | 403 |
+| `GET …/projectsV2/{n}/items?fields[]=…` (cursor in `Link`) | 200 | 403 |
+| `GET …/projectsV2/{n}/items/{id}` | 200 | 403 |
+| `POST …/projectsV2/{n}/items` | 201; 422 if the issue is already there | not tried (reads failed) |
+| `PATCH …/projectsV2/{n}/items/{id}` | 200; 422 if the item is archived | not tried |
+| `DELETE …/projectsV2/{n}/items/{id}` | 204 | not tried |
+| `GET repos/{r}/pulls/{n}/commits` | 200 | 200 |
+
+`…` is `users/{owner}` or `orgs/{owner}`.
 
 ## Library
 

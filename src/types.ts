@@ -91,3 +91,14 @@ export interface RestStatus {
   state: string;
   target_url: string | null;
 }
+
+/** A commit of a PR (`GET repos/{r}/pulls/{n}/commits`). */
+export interface RestPrCommit {
+  sha: string;
+  parents: { sha: string }[];
+  commit: {
+    message: string;
+    author: { name: string; email: string; date: string } | null;
+    committer: { date: string } | null;
+  };
+}

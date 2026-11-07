@@ -12,7 +12,14 @@ import {
   UsageError,
 } from "./args.js";
 import { GitHubError } from "./gh.js";
-import { createPr, findPr, getPr, prView, updatePr } from "./pulls.js";
+import {
+  createPr,
+  findPr,
+  getPr,
+  prCommits,
+  prView,
+  updatePr,
+} from "./pulls.js";
 import {
   prChecks,
   prComments,
@@ -101,7 +108,7 @@ async function prReply(
 }
 
 /**
- * The `pr` subcommands that read a list: checks, reviews and comments.
+ * The `pr` subcommands that read a list: checks, reviews, comments and commits.
  * @param flags - Options.
  * @param sub - Subcommand.
  * @param n - PR number.
@@ -128,14 +135,19 @@ async function prLists(
     emit(threads, truncated ? [TRUNCATED] : []);
     return true;
   }
+  if (sub === "commits") {
+    const { commits, truncated } = await prCommits(repoOf(flags), n);
+    emit(commits, truncated ? [TRUNCATED] : []);
+    return true;
+  }
   return false;
 }
 
 /** Subcommands of `pr` that take only the PR number; extra arguments are a usage error. */
-const LISTS = new Set(["checks", "reviews", "comments"]);
+const LISTS = new Set(["checks", "reviews", "comments", "commits"]);
 
 /**
- * `pr find|view|create|edit|checks|reviews|comments|reply`.
+ * `pr find|view|create|edit|checks|reviews|comments|commits|reply`.
  * @param flags - Options.
  * @param args - Positionals after `pr`.
  * @throws UsageError or GitHubError.
@@ -155,6 +167,6 @@ export async function prCommand(flags: Flags, args: string[]): Promise<void> {
   if (sub !== undefined && LISTS.has(sub) && extra.length === 0)
     if (await prLists(flags, sub, issueNumber(target))) return;
   throw new UsageError(
-    "pr usage: find <branch> | view <n> | create … | edit <n> … | checks <n> | reviews <n> | comments <n> | reply <n> <comment-id> …",
+    "pr usage: find <branch> | view <n> | create … | edit <n> … | checks <n> | reviews <n> | comments <n> | commits <n> | reply <n> <comment-id> …",
   );
 }

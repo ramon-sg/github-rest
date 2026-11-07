@@ -102,33 +102,3 @@ export interface RestPrCommit {
     committer: { date: string } | null;
   };
 }
-
-/** A field of a Projects v2 project (`GET users/{u}/projectsV2/{n}/fields`). */
-export interface RestProjectField {
-  id: number;
-  name: string;
-  data_type: string;
-  options?: { id: string; name: { raw: string } }[];
-}
-
-/** A field value of a project item; `value` depends on `data_type`. */
-export interface RestProjectFieldValue {
-  id: number;
-  name: string;
-  data_type: string;
-  value: unknown;
-}
-
-/** An item of a Projects v2 project (`GET users/{u}/projectsV2/{n}/items`). */
-export interface RestProjectItem {
-  id: number;
-  content_type: string;
-  archived_at?: string | null;
-  content?: {
-    number?: number;
-    title?: string;
-    state?: "open" | "closed";
-    repository_url?: string;
-  } | null;
-  fields?: RestProjectFieldValue[];
-}

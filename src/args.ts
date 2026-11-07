@@ -34,9 +34,6 @@ const OPTIONS = {
   color: { type: "string" },
   description: { type: "string" },
   force: { type: "boolean" },
-  field: { type: "string", multiple: true },
-  value: { type: "string" },
-  issue: { type: "string" },
 } as const;
 
 /** Parsed options. */
@@ -63,9 +60,6 @@ export interface Flags {
   color?: string;
   description?: string;
   force?: boolean;
-  field?: string[];
-  value?: string;
-  issue?: string;
 }
 
 /** An issue or PR number: digits only (`042` is 42). */

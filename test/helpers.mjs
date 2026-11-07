@@ -130,8 +130,8 @@ export function sandbox() {
     origin,
     outside,
     git,
-    route(key, body, status = 200, headers = {}) {
-      routes[key] = { status, body, headers };
+    route(key, body, status = 200) {
+      routes[key] = { status, body };
     },
     page(path, items, page = 1) {
       routes[

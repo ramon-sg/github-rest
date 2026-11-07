@@ -2,7 +2,7 @@
 
 What an issue workflow uses from GitHub (read, list, create and edit issues and their work,
 create the branch, manage labels, find, open and edit PRs, read their checks, reviews,
-comments and commits, reply, and read and write the fields of a Projects v2 project), **over REST only** with `gh api`. It works where GraphQL is
+comments and commits, reply), **over REST only** with `gh api`. It works where GraphQL is
 blocked: in Claude's cloud, the GitHub proxy answers 403 to all GraphQL (`gh issue`,
 `gh pr`) and lets `gh api` through with REST, with no token of its own.
 
@@ -31,10 +31,6 @@ github-rest pr create --head <branch> --base <branch> --title <title> (--body <t
 github-rest pr edit <n> [--body <text> | --body-file <file>] [--reopen]
 github-rest pr checks <n> | pr reviews <n> | pr comments <n> | pr commits <n>
 github-rest pr reply <n> <comment-id> (--body <text> | --body-file <file>)
-github-rest project fields <owner> <n>
-github-rest project items <owner> <n> [--field <name>…]
-github-rest project add <owner> <n> --issue <n> [-R owner/repo]
-github-rest project set <owner> <n> --issue <n> --field <name> --value <v> [-R owner/repo]
 ```
 
 - **`issue-work start`** creates the branch with REST and prints `{repo, branch, base, oid}`.
@@ -60,21 +56,6 @@ github-rest project set <owner> <n> --issue <n> --field <name> --value <v> [-R o
 - **`pr reply`** accepts the id of any comment of the thread.
 - **`pr commits`** prints `[{sha, parents, message, author: {name, email, date}, committedAt}]`,
   oldest first (GitHub lists up to 250).
-- **`project …`** takes the project's owner (a user or an organization, found out on its own)
-  and its number, the one in `github.com/users/<owner>/projects/<n>`.
-  - **`project fields`** prints `[{id, name, type, options?}]`; `options` only for single select.
-  - **`project items`** prints `[{id, type, repo, number, state, title, values}]`, with
-    `values` by field name: numbers stay numbers, single select gives the option, lists
-    (labels, assignees) the names joined with commas. Without `--field` it reads every field.
-    A field name also matches ignoring case, if only one does.
-  - **`project add`** prints `{id, added}`; `added` is false if the issue was already there.
-  - **`project set`** finds the issue's item (adding the issue if it is not in the project) and
-    prints `{item, added, field, value}`. It writes number (with a dot for decimals), text,
-    date (`YYYY-MM-DD`) and single select (the option's name) fields; `--value ""` clears it.
-    A value the field cannot take exits 2 before writing.
-  - **Archived items** are not in `project items` (REST leaves them out and ignores
-    `q=is:archived`), and GitHub refuses to write them. `add` and `set` on an archived issue
-    exit 1 and say so. Right after an add, the list takes a few seconds to show the new item.
 
 There is no `pr merge` nor `pr ready`. Merging stays with `gh pr merge`, which Claude Code's
 auto mode reviews before it runs, and taking a PR out of draft and resolving threads only exist
@@ -86,24 +67,50 @@ variable (`owner/repo` or `host/owner/repo`), then the directory's `origin`. The
 be a GitHub URL (https, `git@`, `ssh://`) or the local git proxy of Claude's cloud
 (`http://local_proxy@127.0.0.1:<port>/git/owner/repo`).
 
-## Projects in Claude's cloud
+## GitHub Projects in Claude's cloud
 
-`scripts/probe-projects.sh` calls each endpoint the `project` commands use on a test project
-(it needs a number field named `Probe`), puts every value back, and prints this table:
+There is no `project` command: Projects v2 can't be reached from Claude's cloud over `gh`.
+Its GitHub proxy only lets through paths under `repos/{owner}/{repo}/…` and answers 403 to the
+rest ("sessions are bound to their configured repositories"), and Projects v2 only has paths
+under `users/` and `orgs/` (and GraphQL, also blocked). A `GH_TOKEN` of your own gets the same
+403. Outside the cloud, `gh project` already works.
+
+In the cloud, use GitHub's MCP server as a claude.ai connector instead. Its traffic goes
+through Anthropic's servers, not the session's GitHub proxy. It is set up once per claude.ai
+account, not per repo:
+
+1. Create a classic token at github.com/settings/tokens/new with the `project` and `repo`
+   scopes.
+2. At claude.ai → Settings → Connectors → Add custom connector: URL
+   `https://api.githubcopilot.com/mcp/x/projects` (only the Projects tools), authentication
+   "No sign-in", and a request header `Authorization: Bearer <token>`.
+3. In the connector's tool permissions, set the read and the write tools to "Always allow",
+   so a session or a scheduled task does not stop to ask. A `permissions.allow` rule in the
+   repo does not skip that prompt; the connector setting does.
+
+Tested from a cloud session on 2026-11-07: list items with fields by name (178 items over 4
+pages), add an issue (adding it again returns the same item), set a number field by issue
+number, clear it, read an archived item, and remove an item. Writing an archived item fails:
+GitHub does not allow it. In the cloud the tools are named `mcp__GitHub__projects_list`,
+`mcp__GitHub__projects_get` and `mcp__GitHub__projects_write` (the middle part is the
+connector's name).
+
+`scripts/probe-projects.sh` calls the Projects REST endpoints on a test project (it needs a
+number field named `Probe`) and puts every value back. This is what it measured:
 
 ```bash
 scripts/probe-projects.sh <owner> <project-n> <repo> <issue-n> <pr-n> [<archived-item-id>]
 ```
 
-| Endpoint | Local (2026-11-07) | Claude's cloud |
+| Endpoint | Local (2026-11-07) | Claude's cloud (2026-11-07) |
 |---|---|---|
-| `GET …/projectsV2/{n}/fields` | 200 | pending |
-| `GET …/projectsV2/{n}/items?fields[]=…` (cursor in `Link`) | 200 | pending |
-| `GET …/projectsV2/{n}/items/{id}` | 200 | pending |
-| `POST …/projectsV2/{n}/items` | 201; 422 if the issue is already there | pending |
-| `PATCH …/projectsV2/{n}/items/{id}` | 200; 422 if the item is archived | pending |
-| `DELETE …/projectsV2/{n}/items/{id}` | 204 | pending |
-| `GET repos/{r}/pulls/{n}/commits` | 200 | pending |
+| `GET …/projectsV2/{n}/fields` | 200 | 403 |
+| `GET …/projectsV2/{n}/items?fields[]=…` (cursor in `Link`) | 200 | 403 |
+| `GET …/projectsV2/{n}/items/{id}` | 200 | 403 |
+| `POST …/projectsV2/{n}/items` | 201; 422 if the issue is already there | not tried (reads failed) |
+| `PATCH …/projectsV2/{n}/items/{id}` | 200; 422 if the item is archived | not tried |
+| `DELETE …/projectsV2/{n}/items/{id}` | 204 | not tried |
+| `GET repos/{r}/pulls/{n}/commits` | 200 | 200 |
 
 `…` is `users/{owner}` or `orgs/{owner}`.
 
@@ -117,16 +124,6 @@ const { output, warnings } = await readWork("acme/widgets", [42]);
 
 When the working directory (or `opts.cwd`) is a checkout of that repo, `readWork` also reads
 the local state and, to do so, runs `git fetch --prune` and `git worktree prune` there.
-
-Projects take the owner and the number; a bad value for a field throws
-`InvalidFieldValueError` before anything is written:
-
-```ts
-import { projectItems, setProjectField } from "@ramon-sg/github-rest";
-const project = { owner: "acme", number: 3 }; // kind: "user" | "org" skips a lookup
-const { items } = await projectItems(project, { fields: ["Estimate"] });
-await setProjectField(project, { repo: "acme/widgets", number: 42, field: "Estimate", value: "2.5" });
-```
 
 ## `issue-work --json`
 

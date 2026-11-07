@@ -40,6 +40,7 @@ const USAGE = `Usage:
   github-rest project fields <owner> <n>
   github-rest project items <owner> <n> [--field <name>...]
   github-rest project add <owner> <n> --issue <n>
+  github-rest project set <owner> <n> --issue <n> --field <name> --value <v>
 
 Every command takes -R owner/repo. Labels and assignees also take commas (--label a,b).`;
 

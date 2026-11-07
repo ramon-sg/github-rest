@@ -42,8 +42,10 @@ export {
 } from "./reviews.js";
 export {
   addProjectItem,
+  type FieldChange,
   type FieldValue,
   fieldByName,
+  InvalidFieldValueError,
   type IssueRef,
   type OwnerKind,
   type ProjectField,
@@ -52,6 +54,7 @@ export {
   projectFields,
   projectItems,
   projectPath,
+  setProjectField,
 } from "./projects.js";
 export { InvalidRepoEnvError, resolveRepo } from "./repo.js";
 export { type StartResult, startBranch } from "./start.js";

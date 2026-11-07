@@ -251,3 +251,137 @@ test("project add: without --issue exits 2", () => {
     assert.deepEqual(s.calls(), []);
   }
 });
+
+function setup(s, items = [item(500, 7)]) {
+  user(s);
+  s.route(`GET ${P}/fields?per_page=100`, FIELDS);
+  s.route(`GET ${P}/items?per_page=100`, items);
+  s.route(`PATCH ${P}/items/500`, { id: 500 });
+}
+
+const set = (s, ...extra) =>
+  s.run(s.repo, ["project", "set", "acme", "3", "--issue", "7", ...extra]);
+
+const writes = (s) => s.calls().filter((call) => call.method !== "GET");
+
+test("project set: patches the item of the issue", () => {
+  const s = sandbox();
+  setup(s);
+  const r = set(s, "--field", "Estimate", "--value", "3.5");
+  assert.equal(r.status, 0, r.err);
+  assert.deepEqual(r.json(), { item: 500, added: false, field: "Estimate", value: 3.5 });
+  assert.deepEqual(writes(s), [
+    { method: "PATCH", path: `${P}/items/500`, body: { fields: [{ id: 11, value: 3.5 }] } },
+  ]);
+});
+
+test("project set: adds the issue when it is not in the project", () => {
+  const s = sandbox();
+  setup(s, []);
+  s.route(`POST ${P}/items`, { id: 500 }, 201);
+  const r = set(s, "--field", "Estimate", "--value", "2");
+  assert.equal(r.status, 0, r.err);
+  assert.equal(r.json().added, true);
+  assert.deepEqual(writes(s).map((call) => `${call.method} ${call.path}`), [
+    `POST ${P}/items`,
+    `PATCH ${P}/items/500`,
+  ]);
+});
+
+test("project set: matches the repo, not only the number", () => {
+  const s = sandbox();
+  setup(s, [item(499, 7, {}, "other/repo"), item(500, 7)]);
+  const r = set(s, "--field", "Estimate", "--value", "1");
+  assert.equal(r.status, 0, r.err);
+  assert.equal(writes(s)[0].path, `${P}/items/500`);
+});
+
+test("project set: --field estimate finds Estimate", () => {
+  const s = sandbox();
+  setup(s);
+  const r = set(s, "--field", "estimate", "--value", "1");
+  assert.equal(r.status, 0, r.err);
+  assert.equal(r.json().field, "Estimate");
+});
+
+test("project set: a name that matches several fields ignoring case exits 1", () => {
+  const s = sandbox();
+  setup(s);
+  s.route(`GET ${P}/fields?per_page=100`, [
+    ...FIELDS,
+    { id: 14, name: "ESTIMATE", data_type: "number" },
+  ]);
+  const r = set(s, "--field", "estimate", "--value", "1");
+  assert.equal(r.status, 1);
+  assert.match(r.err, /"estimate" matches several fields: Estimate, ESTIMATE/);
+  assert.deepEqual(writes(s), []);
+});
+
+test("project set: --value 1,5 exits 2 and does not write", () => {
+  const s = sandbox();
+  setup(s);
+  const r = set(s, "--field", "Estimate", "--value", "1,5");
+  assert.equal(r.status, 2);
+  assert.match(r.err, /Estimate is a number: use a dot for decimals \(1\.5\)/);
+  assert.deepEqual(writes(s), []);
+});
+
+test("project set: a value that is not a number exits 2", () => {
+  const s = sandbox();
+  setup(s);
+  const r = set(s, "--field", "Estimate", "--value", "abc");
+  assert.equal(r.status, 2);
+  assert.match(r.err, /Estimate is a number: abc is not one/);
+  assert.deepEqual(writes(s), []);
+});
+
+test('project set: --value "" sends null', () => {
+  const s = sandbox();
+  setup(s);
+  const r = set(s, "--field", "Estimate", "--value", "");
+  assert.equal(r.status, 0, r.err);
+  assert.deepEqual(writes(s)[0].body, { fields: [{ id: 11, value: null }] });
+  assert.equal(r.json().value, null);
+});
+
+test("project set: single_select sends the option id", () => {
+  const s = sandbox();
+  setup(s);
+  const r = set(s, "--field", "Status", "--value", "done");
+  assert.equal(r.status, 0, r.err);
+  assert.deepEqual(writes(s)[0].body, { fields: [{ id: 12, value: "bb" }] });
+  assert.equal(r.json().value, "Done");
+});
+
+test("project set: an unknown option exits 2 and lists the options", () => {
+  const s = sandbox();
+  setup(s);
+  const r = set(s, "--field", "Status", "--value", "Blocked");
+  assert.equal(r.status, 2);
+  assert.match(r.err, /Status has no option "Blocked": Todo, Done/);
+  assert.deepEqual(writes(s), []);
+});
+
+test("project set: text goes as it is; a field type it cannot write exits 2", () => {
+  const s = sandbox();
+  setup(s);
+  const r = set(s, "--field", "Notes", "--value", "- a, b");
+  assert.equal(r.status, 0, r.err);
+  assert.deepEqual(writes(s)[0].body, { fields: [{ id: 13, value: "- a, b" }] });
+  const t = set(s, "--field", "Title", "--value", "x");
+  assert.equal(t.status, 2);
+  assert.match(t.err, /Title is a title field: only number, text, date and single_select can be set/);
+});
+
+test("project set: missing --issue, --field or --value exits 2", () => {
+  const s = sandbox();
+  for (const args of [
+    ["--field", "Estimate", "--value", "1"],
+    ["--issue", "7", "--value", "1"],
+    ["--issue", "7", "--field", "Estimate"],
+  ]) {
+    const r = s.run(s.repo, ["project", "set", "acme", "3", ...args]);
+    assert.equal(r.status, 2, args.join(" "));
+    assert.deepEqual(s.calls(), []);
+  }
+});

@@ -291,7 +291,22 @@ export async function addProjectItem(
   ref: ProjectRef,
   issue: IssueRef,
 ): Promise<{ id: number; added: boolean }> {
-  const path = await projectPath(ref);
+  return addAt(await projectPath(ref), ref, issue);
+}
+
+/**
+ * `addProjectItem` on a project at a known path.
+ * @param path - From `projectPath`.
+ * @param ref - The project, for messages.
+ * @param issue - The issue.
+ * @returns The item id and whether it was added now.
+ * @throws GitHubError as `addProjectItem`.
+ */
+async function addAt(
+  path: string,
+  ref: ProjectRef,
+  issue: IssueRef,
+): Promise<{ id: number; added: boolean }> {
   const { owner, name } = splitRepo(issue.repo);
   const res = await ghApi("POST", `${path}/items`, {
     type: "Issue",
@@ -310,4 +325,96 @@ export async function addProjectItem(
       422,
     );
   return { id: found.id, added: false };
+}
+
+/** A value that the field cannot take; the CLI exits 2 with it. */
+export class InvalidFieldValueError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "InvalidFieldValueError";
+  }
+}
+
+/** Field types `setProjectField` can write. */
+const WRITABLE = new Set(["number", "text", "date", "single_select"]);
+
+/**
+ * The value a PATCH sends for a field, from the text given, and how it reads back.
+ * An empty text clears the field.
+ * @param field - The field.
+ * @param text - The value as text.
+ * @returns What the PATCH sends and the readable value.
+ * @throws InvalidFieldValueError if the field cannot take it.
+ */
+function toPatchValue(
+  field: ProjectField,
+  text: string,
+): { send: number | string | null; shown: FieldValue } {
+  if (!WRITABLE.has(field.type))
+    throw new InvalidFieldValueError(
+      `${field.name} is a ${field.type} field: only number, text, date and single_select can be set`,
+    );
+  if (text === "") return { send: null, shown: null };
+  if (field.type === "number") {
+    const n = Number(text.trim());
+    if (text.trim() === "" || !Number.isFinite(n))
+      throw new InvalidFieldValueError(
+        text.includes(",")
+          ? `${field.name} is a number: use a dot for decimals (${text.replace(",", ".")})`
+          : `${field.name} is a number: ${text} is not one`,
+      );
+    return { send: n, shown: n };
+  }
+  if (field.type === "single_select") {
+    const options = field.options ?? [];
+    const option =
+      options.find((o) => o.name === text) ??
+      options.find((o) => o.name.toLowerCase() === text.toLowerCase());
+    if (option === undefined)
+      throw new InvalidFieldValueError(
+        `${field.name} has no option "${text}": ${options.map((o) => o.name).join(", ")}`,
+      );
+    return { send: option.id, shown: option.name };
+  }
+  return { send: text, shown: text };
+}
+
+/** A field to write on an issue of a project. */
+export interface FieldChange extends IssueRef {
+  field: string;
+  value: string;
+}
+
+/**
+ * Writes a field of an issue in a project, adding the issue first if it is not there. The
+ * value is a text: a number for number fields (with a dot for decimals), the option name for
+ * single_select, `YYYY-MM-DD` for dates; an empty text clears the field. The value is checked
+ * before anything is written.
+ * @param ref - The project.
+ * @param change - The issue, the field's name and the value.
+ * @returns The item, whether it was added now, the field's name and the value as it reads.
+ * @throws InvalidFieldValueError if the field cannot take the value; GitHubError if GitHub
+ *   fails, the field does not exist or the issue is archived in the project.
+ * @example await setProjectField({ owner: "acme", number: 3 }, { repo: "acme/widgets", number: 7, field: "Estimate", value: "2.5" })
+ */
+export async function setProjectField(
+  ref: ProjectRef,
+  change: FieldChange,
+): Promise<{ item: number; added: boolean; field: string; value: FieldValue }> {
+  const path = await projectPath(ref);
+  const field = fieldByName(await fieldsAt(path, projectName(ref)), change.field);
+  const { send, shown } = toPatchValue(field, change.value);
+  const issue = { repo: change.repo, number: change.number };
+  const found = await findItem(path, ref, issue);
+  const { id, added } =
+    found === undefined ? await addAt(path, ref, issue) : { id: found.id, added: false };
+  const res = await ghApi("PATCH", `${path}/items/${id}`, {
+    fields: [{ id: field.id, value: send }],
+  });
+  if (!res.ok)
+    throw failure(
+      res,
+      `could not set ${field.name} of issue ${change.repo}#${change.number}`,
+    );
+  return { item: id, added, field: field.name, value: shown };
 }

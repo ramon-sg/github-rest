@@ -1,7 +1,7 @@
 // Fake gh for the tests. Answers `gh api --method M <path> [--input -]` with the routes in
 // FAKE_GH_ROUTES ({"GET repos/...": {status, body}}), logs every call to FAKE_GH_LOG and, if
 // FAKE_GH_ORIGIN is a bare repo, creates there the branches requested with POST git/refs. No
-// route: 404 like gh. The sandbox fails any run that calls the graphql endpoint.
+// route: 404 like gh. With -i it prints the status line and the route's headers first. The sandbox fails any run that calls the graphql endpoint.
 import { appendFileSync, readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 
@@ -19,10 +19,17 @@ if (process.env.FAKE_GH_OFFLINE) {
   process.stderr.write("error connecting to api.github.com\n");
   process.exit(1);
 }
+const include = args.includes("-i");
+const head = (status, headers = {}) =>
+  include
+    ? `HTTP/2.0 ${status} X\n${Object.entries(headers)
+        .map(([k, v]) => `${k}: ${v}\r\n`)
+        .join("")}\r\n`
+    : "";
 const routes = JSON.parse(readFileSync(process.env.FAKE_GH_ROUTES, "utf8"));
 const route = routes[`${method} ${path}`];
 if (route === undefined) {
-  process.stdout.write('{"message":"Not Found"}');
+  process.stdout.write(`${head(404)}{"message":"Not Found"}`);
   process.stderr.write("gh: Not Found (HTTP 404)\n");
   process.exit(1);
 }
@@ -31,7 +38,7 @@ const origin = process.env.FAKE_GH_ORIGIN;
 if (status < 300 && origin && method === "POST" && path.endsWith("/git/refs")) {
   execFileSync("git", ["-C", origin, "update-ref", body.ref, body.sha]);
 }
-process.stdout.write(JSON.stringify(route.body ?? {}));
+process.stdout.write(head(status, route.headers) + JSON.stringify(route.body ?? {}));
 if (status >= 300) {
   process.stderr.write(
     `gh: ${route.body?.message ?? "error"} (HTTP ${status})\n`,

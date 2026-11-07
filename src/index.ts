@@ -41,11 +41,14 @@ export {
   type Thread,
 } from "./reviews.js";
 export {
+  type FieldValue,
   fieldByName,
   type OwnerKind,
   type ProjectField,
+  type ProjectItem,
   type ProjectRef,
   projectFields,
+  projectItems,
   projectPath,
 } from "./projects.js";
 export { InvalidRepoEnvError, resolveRepo } from "./repo.js";

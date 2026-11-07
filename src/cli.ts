@@ -34,7 +34,7 @@ const USAGE = `Usage:
   github-rest pr view <n>
   github-rest pr create --head <branch> --base <branch> --title <title> (--body <text> | --body-file <file>) [--draft]
   github-rest pr edit <n> [--body <text> | --body-file <file>] [--reopen]
-  github-rest pr checks <n> | pr reviews <n> | pr comments <n>
+  github-rest pr checks <n> | pr reviews <n> | pr comments <n> | pr commits <n>
   github-rest pr reply <n> <comment-id> (--body <text> | --body-file <file>)
 
 Every command takes -R owner/repo. Labels and assignees also take commas (--label a,b).`;

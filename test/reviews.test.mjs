@@ -170,3 +170,43 @@ test("pr usage errors exit with 2 before calling GitHub, and there is no merge n
     assert.deepEqual(s.calls(), [], args.join(" "));
   }
 });
+
+test("pr commits: sha, parents, message and dates", () => {
+  const s = sandbox();
+  s.page(`${REPO}/pulls/7/commits`, [
+    {
+      sha: "a1",
+      parents: [{ sha: "p0" }],
+      commit: {
+        message: "feat: x",
+        author: { name: "t", email: "t@t", date: "2026-01-01T00:00:00Z" },
+        committer: { date: "2026-01-02T00:00:00Z" },
+      },
+    },
+  ]);
+  const r = s.run(s.repo, ["pr", "commits", "7"]);
+  assert.equal(r.status, 0, r.err);
+  assert.deepEqual(r.json(), [
+    {
+      sha: "a1",
+      parents: ["p0"],
+      message: "feat: x",
+      author: { name: "t", email: "t@t", date: "2026-01-01T00:00:00Z" },
+      committedAt: "2026-01-02T00:00:00Z",
+    },
+  ]);
+});
+
+test("pr commits: an extra argument exits with 2", () => {
+  const s = sandbox();
+  const r = s.run(s.repo, ["pr", "commits", "7", "extra"]);
+  assert.equal(r.status, 2);
+  assert.deepEqual(s.calls(), []);
+});
+
+test("pr commits: a PR that does not exist exits with 1", () => {
+  const s = sandbox();
+  const r = s.run(s.repo, ["pr", "commits", "7"]);
+  assert.equal(r.status, 1);
+  assert.match(r.err, /could not read the commits of PR #7/);
+});

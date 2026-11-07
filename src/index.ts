@@ -25,6 +25,8 @@ export {
   type NewPr,
   type Pr,
   type PrChange,
+  type PrCommit,
+  prCommits,
   type PrState,
   updatePr,
 } from "./pulls.js";

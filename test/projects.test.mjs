@@ -405,15 +405,16 @@ test("project: in Claude's cloud it exits 3 before calling GitHub and links the 
 });
 
 test("project: the cloud proxy's 403 also exits 3 when the variable is missing", () => {
-  const s = sandbox();
-  s.route(
-    "GET users/acme",
-    { message: "sessions are bound to their configured repositories" },
-    403,
-  );
-  const r = s.run(s.repo, ["project", "fields", "acme", "3"]);
-  assert.equal(r.status, 3);
-  assert.match(r.err, GUIDE);
+  for (const message of [
+    "sessions are bound to their configured repositories",
+    "GitHub access to acme is not enabled for this session",
+  ]) {
+    const s = sandbox();
+    s.route("GET users/acme", { message }, 403);
+    const r = s.run(s.repo, ["project", "fields", "acme", "3"]);
+    assert.equal(r.status, 3, message);
+    assert.match(r.err, GUIDE);
+  }
 });
 
 test("project: any other 403 exits 1 with GitHub's message", () => {

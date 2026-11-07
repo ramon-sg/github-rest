@@ -5,13 +5,19 @@ reached with `gh`, so `github-rest project …` only works on a regular machine.
 write a project's fields in the cloud, use GitHub's MCP server as a claude.ai **connector**.
 This guide sets it up.
 
+The connector is a stopgap for the cloud only: everywhere else use `github-rest project …`,
+even if the connector is set up. Once the cloud's proxy lets Projects through, it goes away
+([#9](https://github.com/ramon-sg/github-rest/issues/9)). If you never use Claude's cloud,
+you don't need it.
+
 It is set up **once per claude.ai account**, not per repo: every session and scheduled task
 of that account gets it.
 
 ## For agents: is the connector there?
 
-You are in the cloud if `CLAUDE_CODE_REMOTE` is `true`; there `github-rest project …` exits 3
-without calling GitHub. On a regular machine, use `github-rest project …` and skip this page.
+Run `github-rest project …` first. Use the connector only if it exits 3: that means Claude's
+cloud (`CLAUDE_CODE_REMOTE=true`), where it stops without calling GitHub. On a regular
+machine, don't use the connector even if its tools are there.
 
 Look for tools whose names end in `projects_list`, `projects_get` and `projects_write`. In a
 cloud session they are named `mcp__GitHub__projects_list`, `mcp__GitHub__projects_get` and

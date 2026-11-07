@@ -104,12 +104,16 @@ connector guide. Without it, a 403 that says the proxy blocked the call
 without the `project` scope) exits 1 with GitHub's message. The library throws
 `ProjectsBlockedError` in the same cases, and `inClaudeCloud()` tells where it runs.
 
+REST is the way; the connector is only a stopgap for the cloud, until its proxy lets Projects
+through ([#9](https://github.com/ramon-sg/github-rest/issues/9)). If you never use Claude's
+cloud, you don't need the connector.
+
 For a skill or an agent that has to work on both sides:
 
-1. If `CLAUDE_CODE_REMOTE` is `true`, use the connector's tools. Otherwise run
-   `github-rest project …`. (Running the command and switching on exit 3 does the same.)
-2. In the cloud, if the connector's tools are not there, stop the Projects part and tell the
-   user the GitHub connector is missing, with the link to its guide.
+1. Run `github-rest project …`, also when the connector's tools are there.
+2. Only if it exits 3 (Claude's cloud), use the connector's tools. If they are not there, stop
+   the Projects part and tell the user the GitHub connector is missing, with the link to its
+   guide.
 
 The connector is set up once per claude.ai account: **[docs/projects-connector.md](docs/projects-connector.md)**
 (`https://github.com/ramon-sg/github-rest/blob/main/docs/projects-connector.md`, the link to

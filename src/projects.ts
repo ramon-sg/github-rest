@@ -14,8 +14,12 @@ import type {
 export const PROJECTS_GUIDE =
   "https://github.com/ramon-sg/github-rest/blob/main/docs/projects-connector.md";
 
-/** What the cloud's GitHub proxy says when it blocks a path outside the session's repos. */
-const PROXY_BLOCK = /bound to their configured repositories/i;
+/**
+ * What the cloud's GitHub proxy says when it blocks a path: the text measured on 2026-11-07
+ * and the one Claude Code's docs quote.
+ */
+const PROXY_BLOCK =
+  /bound to their configured repositories|is not enabled for this session/i;
 
 /**
  * Projects v2 can't be reached from here: Claude's cloud blocks it. The CLI exits 3 with it,

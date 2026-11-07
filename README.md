@@ -73,27 +73,14 @@ There is no `project` command: Projects v2 can't be reached from Claude's cloud 
 Its GitHub proxy only lets through paths under `repos/{owner}/{repo}/…` and answers 403 to the
 rest ("sessions are bound to their configured repositories"), and Projects v2 only has paths
 under `users/` and `orgs/` (and GraphQL, also blocked). A `GH_TOKEN` of your own gets the same
-403. Outside the cloud, `gh project` already works.
+403. Outside the cloud, `gh project` already works. `github-rest project …` exits 2 and
+prints the link below.
 
-In the cloud, use GitHub's MCP server as a claude.ai connector instead. Its traffic goes
-through Anthropic's servers, not the session's GitHub proxy. It is set up once per claude.ai
-account, not per repo:
-
-1. Create a classic token at github.com/settings/tokens/new with the `project` and `repo`
-   scopes.
-2. At claude.ai → Settings → Connectors → Add custom connector: URL
-   `https://api.githubcopilot.com/mcp/x/projects` (only the Projects tools), authentication
-   "No sign-in", and a request header `Authorization: Bearer <token>`.
-3. In the connector's tool permissions, set the read and the write tools to "Always allow",
-   so a session or a scheduled task does not stop to ask. A `permissions.allow` rule in the
-   repo does not skip that prompt; the connector setting does.
-
-Tested from a cloud session on 2026-11-07: list items with fields by name (178 items over 4
-pages), add an issue (adding it again returns the same item), set a number field by issue
-number, clear it, read an archived item, and remove an item. Writing an archived item fails:
-GitHub does not allow it. In the cloud the tools are named `mcp__GitHub__projects_list`,
-`mcp__GitHub__projects_get` and `mcp__GitHub__projects_write` (the middle part is the
-connector's name).
+In the cloud, use GitHub's MCP server as a claude.ai connector: it is set up once per account,
+not per repo, and its traffic does not go through that proxy. **Setup, permissions and how
+an agent uses it: [docs/projects-connector.md](docs/projects-connector.md)**
+(`https://github.com/ramon-sg/github-rest/blob/main/docs/projects-connector.md`, the link to
+give a user or an agent when the connector is missing).
 
 `scripts/probe-projects.sh` calls the Projects REST endpoints on a test project (it needs a
 number field named `Probe`) and puts every value back. This is what it measured:

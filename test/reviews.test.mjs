@@ -210,3 +210,14 @@ test("pr commits: a PR that does not exist exits with 1", () => {
   assert.equal(r.status, 1);
   assert.match(r.err, /could not read the commits of PR #7/);
 });
+
+test("project: there is no such command, and the error links the connector guide", () => {
+  const s = sandbox();
+  const r = s.run(s.repo, ["project", "items", "rsat", "14"]);
+  assert.equal(r.status, 2);
+  assert.match(
+    r.err,
+    /no project command: in Claude's cloud, GitHub Projects goes through the GitHub connector\. Set it up: https:\/\/github\.com\/ramon-sg\/github-rest\/blob\/main\/docs\/projects-connector\.md/,
+  );
+  assert.deepEqual(s.calls(), []);
+});

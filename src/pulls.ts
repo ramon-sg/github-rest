@@ -17,6 +17,7 @@ export interface Pr {
   branch: string;
   head: string;
   fork: boolean;
+  title: string;
   body: string;
   baseRepo: string;
   url: string;
@@ -42,6 +43,7 @@ export function toPr(raw: RestPull): Pr {
     fork:
       raw.head.repo === null ||
       !sameRepo(raw.head.repo.full_name, raw.base.repo.full_name),
+    title: raw.title,
     body: raw.body ?? "",
     baseRepo: raw.base.repo.full_name,
     url: raw.html_url,
@@ -59,6 +61,7 @@ export const prView = (pr: Pr) => ({
   state: pr.state,
   isDraft: pr.draft,
   headRefOid: pr.head,
+  title: pr.title,
   body: pr.body,
   url: pr.url,
 });
@@ -150,12 +153,13 @@ export async function createPr(
 
 /** Changes to a PR. */
 export interface PrChange {
+  title?: string;
   body?: string;
   state?: "open" | "closed";
 }
 
 /**
- * Changes the body or state of a PR.
+ * Changes the title, body or state of a PR.
  * @param repo - `owner/repo`.
  * @param n - Number.
  * @param change - What changes.

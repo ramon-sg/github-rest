@@ -28,6 +28,7 @@ export interface RestPull {
   state: "open" | "closed";
   merged_at: string | null;
   draft?: boolean;
+  title: string;
   body: string | null;
   html_url: string;
   head: { ref: string; sha: string; repo: { full_name: string } | null };

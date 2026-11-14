@@ -97,6 +97,7 @@ test("pr find: the newest PR of the branch, or null", () => {
     state: "OPEN",
     isDraft: false,
     headRefOid: "oid8",
+    title: "PR 8",
     body: "Closes #42",
     url: "https://github.com/acme/widgets/pull/8",
   });
@@ -163,6 +164,14 @@ test("pr edit: body from a file, and reopen", () => {
     body: "Part of #42",
     state: "open",
   });
+});
+
+test("pr edit: title", () => {
+  const s = sandbox();
+  s.route("PATCH repos/acme/widgets/pulls/9", pull(9, "OPEN", "feat/42-a"));
+  const r = s.run(s.repo, ["pr", "edit", "9", "--title", "Add the thing"]);
+  assert.equal(r.status, 0, r.err);
+  assert.deepEqual(s.calls().at(-1).body, { title: "Add the thing" });
 });
 
 test("usage: exits with 2", () => {

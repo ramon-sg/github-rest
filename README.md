@@ -28,7 +28,7 @@ github-rest issue comments <n> | issue comment <n> (--body <text> | --body-file 
 github-rest label list | label create <name> [--color <hex>] [--description <text>] [--force]
 github-rest pr find <branch> | pr view <n>
 github-rest pr create --head <branch> --base <branch> --title <title> (--body <text> | --body-file <file>) [--draft]
-github-rest pr edit <n> [--body <text> | --body-file <file>] [--reopen]
+github-rest pr edit <n> [--title <title>] [--body <text> | --body-file <file>] [--reopen]
 github-rest pr checks <n> | pr reviews <n> | pr comments <n> | pr commits <n>
 github-rest pr reply <n> <comment-id> (--body <text> | --body-file <file>)
 github-rest project fields <owner> <n>
@@ -53,7 +53,7 @@ github-rest project set <owner> <n> --issue <n> --field <name> --value <v> [-R o
 - **`pr checks`** prints `{sha, checks: [{name, state, bucket, link, kind}]}` for the PR's
   head: the latest check runs and the commit statuses. `bucket` is `pass`, `fail`, `pending`,
   `skipping` or `cancel`, as in `gh pr checks`; it exits 0 whatever the checks say.
-- **`pr find`** and **`pr view`** print `{number, state, isDraft, headRefOid, body, url}`, the
+- **`pr find`** and **`pr view`** print `{number, state, isDraft, headRefOid, title, body, url}`, the
   fields of `gh pr view --json`.
 - **`pr comments`** groups the diff comments by thread: `[{id, user, path, line, outdated,
   body, url, createdAt, replies}]`. Whether a thread is resolved only exists in GraphQL.

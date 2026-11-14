@@ -73,16 +73,17 @@ async function prViewCommand(flags: Flags, n: number): Promise<void> {
 }
 
 /**
- * `pr edit <n> [--body | --body-file] [--reopen]`.
+ * `pr edit <n> [--title] [--body | --body-file] [--reopen]`.
  * @param flags - Options.
  * @param n - Number.
  * @throws UsageError or GitHubError.
  */
 async function prEdit(flags: Flags, n: number): Promise<void> {
   const body = bodyOf(flags);
-  if (body === undefined && !flags.reopen)
-    throw new UsageError("pr edit needs --body, --body-file or --reopen.");
+  if (flags.title === undefined && body === undefined && !flags.reopen)
+    throw new UsageError("pr edit needs --title, --body, --body-file or --reopen.");
   await updatePr(repoOf(flags), n, {
+    ...(flags.title === undefined ? {} : { title: flags.title }),
     ...(body === undefined ? {} : { body }),
     ...(flags.reopen ? { state: "open" as const } : {}),
   });

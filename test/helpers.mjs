@@ -42,6 +42,7 @@ export function pull(
     state: state === "OPEN" ? "open" : "closed",
     merged_at: state === "MERGED" ? "2026-01-01T00:00:00Z" : null,
     draft,
+    title: `PR ${n}`,
     body,
     html_url: `https://github.com/acme/widgets/pull/${n}`,
     head: {

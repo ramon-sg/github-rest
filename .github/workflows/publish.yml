@@ -4,10 +4,36 @@ on:
     tags: ["v*"]
 permissions:
   contents: read
-  id-token: write
 jobs:
-  publish:
+  # Bun runs in its own job, without id-token: a third-party action never runs where the
+  # package can be published.
+  bun:
     runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: .tool-versions
+      - run: npm ci
+      - run: npx tsc
+      - run: bun test --timeout 20000 test/
+      - name: The packed tarball runs with bunx --bun and npx --yes
+        run: |
+          npm pack --pack-destination "$RUNNER_TEMP"
+          tgz="$(ls "$RUNNER_TEMP"/ramon-sg-github-rest-*.tgz)"
+          want="$(node -p 'require("./package.json").version')"
+          dir="$(mktemp -d)" && cd "$dir"
+          test "$(npx --yes -p "$tgz" github-rest --version)" = "$want"
+          bun add "$tgz" && test "$(bun x --bun github-rest --version)" = "$want"
+  publish:
+    needs: bun
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -22,18 +48,6 @@ jobs:
             echo "tag v$tag does not match package.json version $version" >&2
             exit 1
           fi
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version-file: .tool-versions
       - run: npm ci
       - run: npm test
-      - run: bun test --timeout 20000 test/
-      - name: The packed tarball runs with bunx --bun and npx --yes
-        run: |
-          npm pack --pack-destination "$RUNNER_TEMP"
-          tgz="$(ls "$RUNNER_TEMP"/ramon-sg-github-rest-*.tgz)"
-          want="$(node -p 'require("./package.json").version')"
-          dir="$(mktemp -d)" && cd "$dir"
-          test "$(npx --yes -p "$tgz" github-rest --version)" = "$want"
-          bun add "$tgz" && test "$(bun x --bun github-rest --version)" = "$want"
       - run: npm publish --access public --provenance

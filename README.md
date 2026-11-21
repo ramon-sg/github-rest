@@ -12,7 +12,8 @@ so a version runs the same code wherever it is downloaded; CI tests it with Node
 ## Installation
 
 Nothing to install: run it with the exact version, with the runner the repo says in
-`.agents/runner.json` (`bun` if it says none):
+`.agents/runner.json` (`bun` if it says none; the file and its rules are
+[`@ramon-sg/runner`](https://www.npmjs.com/package/@ramon-sg/runner)'s):
 
 ```bash
 bunx --bun @ramon-sg/github-rest@<version> <command>   # runner "bun"

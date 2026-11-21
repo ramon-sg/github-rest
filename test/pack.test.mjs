@@ -38,23 +38,60 @@ test("the package has no runtime dependencies", () => {
     assert.deepEqual(Object.keys(pkg[key] ?? {}), [], key);
 });
 
-test("dist only imports node builtins and its own files", () => {
-  const dist = join(ROOT, "dist");
-  const specifiers =
-    /(?:\bfrom\s*|\bimport\s*\(\s*|\bimport\s+)["']([^"']+)["']/g;
-  const files = readdirSync(dist, { recursive: true }).filter((file) =>
-    String(file).endsWith(".js"),
+/**
+ * Specifiers of `from "x"`, `import "x"`, `import("x")`, `require("x")` and
+ * `createRequire(…)("x")`, with any quotes.
+ */
+const SPECIFIERS =
+  /(?:\bfrom\s*|\bimport\s*\(\s*|\bimport\s+|\brequire\s*\(\s*|Require\s*\([^)]*\)\s*\(\s*)["'`]([^"'`]+)["'`]/g;
+/** Block comments and whole-line comments: their prose says "from `x`" too. */
+const COMMENTS = /\/\*[\s\S]*?\*\/|^\s*\/\/.*$/gm;
+const ALLOWED = /^(node:|\.\.?\/)/;
+
+/** Specifiers in `code` that are not a node builtin nor a file of the package. */
+function foreignImports(code) {
+  return [...code.replace(COMMENTS, "").matchAll(SPECIFIERS)]
+    .map(([, specifier]) => specifier)
+    .filter((specifier) => !ALLOWED.test(specifier));
+}
+
+test("the import scan sees every way to load a package", () => {
+  for (const code of [
+    'import { a } from "pkg";',
+    'import {\n  a,\n  b,\n} from "pkg";',
+    'import "pkg";',
+    'export * from "pkg";',
+    'export * as ns from "pkg";',
+    'const m = await import("pkg");',
+    "const m = await import(`pkg`);",
+    'const m = require("pkg");',
+    'const m = createRequire(import.meta.url)("pkg");',
+    'import type { A } from "pkg";',
+    'export declare function f(): import("pkg").A;',
+  ])
+    assert.deepEqual(foreignImports(code), ["pkg"], code);
+  assert.deepEqual(
+    foreignImports('import { x } from "node:fs";\nexport * from "./a.js";'),
+    [],
   );
-  assert.ok(files.length > 0, "dist/ has no .js files: run tsc first");
-  for (const file of files) {
-    const code = readFileSync(join(dist, String(file)), "utf8");
-    for (const [, specifier] of code.matchAll(specifiers))
-      assert.match(
-        specifier,
-        /^(node:|\.\.?\/)/,
-        `dist/${file} imports ${specifier}`,
-      );
-  }
+  assert.deepEqual(
+    foreignImports('/**\n * Derived from `OPTIONS`.\n */\n// import "pkg"\nconst u = "https://x";'),
+    [],
+  );
+});
+
+test("dist only imports node builtins and its own files, also in its types", () => {
+  const dist = join(ROOT, "dist");
+  const files = readdirSync(dist, { recursive: true })
+    .map(String)
+    .filter((file) => file.endsWith(".js") || file.endsWith(".d.ts"));
+  assert.ok(files.length > 0, "dist/ is empty: run tsc first");
+  for (const file of files)
+    assert.deepEqual(
+      foreignImports(readFileSync(join(dist, file), "utf8")),
+      [],
+      `dist/${file}`,
+    );
 });
 
 test("the bin is dist/cli.js and starts with a node shebang", () => {

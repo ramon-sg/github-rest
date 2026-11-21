@@ -196,11 +196,19 @@ test("--version prints the package version, also next to a command", () => {
   const { version } = JSON.parse(
     readFileSync(new URL("../package.json", import.meta.url), "utf8"),
   );
-  for (const args of [["--version"], ["-v"], ["issue", "view", "1", "--version"]]) {
+  for (const args of [["--version"], ["issue", "view", "1", "--version"]]) {
     const r = s.run(s.repo, args);
     assert.equal(r.status, 0, args.join(" "));
     assert.equal(r.out, `${version}\n`);
   }
+  assert.deepEqual(s.calls(), []);
+});
+
+test("-v is not a flag: a command with it fails instead of printing the version", () => {
+  const s = sandbox();
+  const r = s.run(s.repo, ["issue", "edit", "5", "--close", "-v"]);
+  assert.equal(r.status, 2);
+  assert.equal(r.out, "");
   assert.deepEqual(s.calls(), []);
 });
 

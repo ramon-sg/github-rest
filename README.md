@@ -6,8 +6,8 @@ comments and commits, reply), **over REST only** with `gh api`. It works where G
 blocked: in Claude's cloud, the GitHub proxy answers 403 to all GraphQL (`gh issue`,
 `gh pr`) and lets `gh api` through with REST, with no token of its own.
 
-Needs `gh` and `git`, and Node 20 or later or Bun. The package has no runtime dependencies:
-what runs is what was tested when it was published, with Node and with Bun.
+Needs `gh` and `git`, and Node 20 or later or Bun. The package has no runtime dependencies,
+so a version runs the same code wherever it is downloaded; CI tests it with Node and with Bun.
 
 ## Installation
 

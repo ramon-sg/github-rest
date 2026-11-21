@@ -15,7 +15,7 @@ const OPTIONS = {
   repo: { type: "string", short: "R" },
   json: { type: "boolean" },
   help: { type: "boolean", short: "h" },
-  version: { type: "boolean", short: "v" },
+  version: { type: "boolean" },
   branch: { type: "string" },
   base: { type: "string" },
   head: { type: "string" },

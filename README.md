@@ -6,14 +6,21 @@ comments and commits, reply), **over REST only** with `gh api`. It works where G
 blocked: in Claude's cloud, the GitHub proxy answers 403 to all GraphQL (`gh issue`,
 `gh pr`) and lets `gh api` through with REST, with no token of its own.
 
-Needs `gh` and `git`, and Node 20 or later. With Bun, run the CLI with `bunx --bun github-rest`
-or keep `node` on the PATH (the binary's shebang is `node`).
+Needs `gh` and `git`, and Node 20 or later or Bun. The package has no runtime dependencies:
+what runs is what was tested when it was published, with Node and with Bun.
 
 ## Installation
 
+Nothing to install: run it with the exact version, with the runner the repo says in
+`.agents/runner.json` (`bun` if it says none):
+
 ```bash
-npm i -D @ramon-sg/github-rest   # or bun add -d
+bunx --bun @ramon-sg/github-rest@<version> <command>   # runner "bun"
+npx --yes @ramon-sg/github-rest@<version> <command>    # runner "node"
 ```
+
+With Bun, `--bun` is needed: the binary's shebang is `node`, and without it Bun runs it with
+Node if Node is installed. As a library, `npm i @ramon-sg/github-rest` (or `bun add`).
 
 ## CLI
 
@@ -35,6 +42,7 @@ github-rest project fields <owner> <n>
 github-rest project items <owner> <n> [--field <name>…]
 github-rest project add <owner> <n> --issue <n> [-R owner/repo]
 github-rest project set <owner> <n> --issue <n> --field <name> --value <v> [-R owner/repo]
+github-rest --version
 ```
 
 - **`issue-work start`** creates the branch with REST and prints `{repo, branch, base, oid}`.
@@ -119,7 +127,7 @@ To write in a project when something happens on GitHub (an issue is closed, a PR
 use a GitHub Action instead of the agent: issues are usually closed by a merge or by a person,
 when no agent session is running, and Actions run outside the cloud's proxy. The Action needs
 a secret with a classic token with `project` (`GITHUB_TOKEN` can't reach Projects v2) and can
-run `npx @ramon-sg/github-rest project set …` with `GH_TOKEN` set to it. More in
+run `npx --yes @ramon-sg/github-rest@<version> project set …` (or `bunx --bun …`) with `GH_TOKEN` set to it. More in
 [agent-cloud-kit#5](https://github.com/ramon-sg/agent-cloud-kit/issues/5).
 
 The connector is set up once per claude.ai account: **[docs/projects-connector.md](docs/projects-connector.md)**

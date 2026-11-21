@@ -147,11 +147,11 @@ export function sandbox() {
         .filter(Boolean)
         .map((line) => JSON.parse(line));
     },
-    // A PATH with only node and git, to run the CLI without gh.
+    // A PATH with only git, to run the CLI without gh. The CLI itself needs no node on the
+    // PATH: run() starts it with process.execPath.
     pathWithoutGh() {
       const only = join(tmp, "no-gh");
       mkdirSync(only, { recursive: true });
-      symlinkSync(process.execPath, join(only, "node"));
       const gitPath = execFileSync("sh", ["-c", "command -v git"], {
         encoding: "utf8",
       }).trim();

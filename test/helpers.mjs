@@ -88,9 +88,11 @@ export function sandbox() {
   const tmp = realpathSync(mkdtempSync(join(tmpdir(), "github-rest-")));
   const bin = join(tmp, "bin");
   mkdirSync(bin);
+  // The fake gh runs with the runtime of the tests (node, or bun under `bun test`), not with
+  // whatever `node` the PATH has: outside the repo an asdf shim may have no version set.
   writeFileSync(
     join(bin, "gh"),
-    `#!/bin/sh\nexec node "${join(HERE, "fake-gh.mjs")}" "$@"\n`,
+    `#!/bin/sh\nexec "${process.execPath}" "${join(HERE, "fake-gh.mjs")}" "$@"\n`,
   );
   chmodSync(join(bin, "gh"), 0o755);
   const origin = join(tmp, "origin.git");

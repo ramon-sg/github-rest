@@ -13,3 +13,25 @@ jobs:
           node-version: ${{ matrix.node }}
       - run: npm ci
       - run: npm test
+  bun:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .tool-versions
+      - run: npm ci
+      - run: npx tsc
+      - run: bun dist/cli.js --version
+      - run: bun test --timeout 20000 test/
+      - name: The packed tarball runs with bunx --bun and npx --yes
+        run: |
+          npm pack
+          tgz="$PWD/$(ls ramon-sg-github-rest-*.tgz)"
+          want="$(node -p 'require("./package.json").version')"
+          dir="$(mktemp -d)" && cd "$dir"
+          test "$(npx --yes -p "$tgz" github-rest --version)" = "$want"
+          bun add "$tgz" && test "$(bun x --bun github-rest --version)" = "$want"

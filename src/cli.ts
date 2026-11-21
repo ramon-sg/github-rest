@@ -6,6 +6,7 @@
  * Projects.
  */
 import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import {
   emit,
   type Flags,
@@ -44,6 +45,7 @@ const USAGE = `Usage:
   github-rest project items <owner> <n> [--field <name>...]
   github-rest project add <owner> <n> --issue <n>
   github-rest project set <owner> <n> --issue <n> --field <name> --value <v>
+  github-rest --version
 
 Every command takes -R owner/repo. Labels and assignees also take commas (--label a,b).`;
 
@@ -88,6 +90,17 @@ async function issueWorkCommand(flags: Flags, args: string[]): Promise<void> {
 }
 
 /**
+ * The version of the installed package, from the package.json next to dist/.
+ * @returns The version, such as `0.7.0`.
+ */
+function packageVersion(): string {
+  const pkg = JSON.parse(
+    readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+  ) as { version: string };
+  return pkg.version;
+}
+
+/**
  * Runs the CLI.
  * @param argv - Arguments without `node` or the script.
  * @returns The exit code.
@@ -97,6 +110,10 @@ export async function main(argv: string[]): Promise<number> {
   const { flags, args } = parse(argv);
   if (flags.help) {
     process.stdout.write(`${USAGE}\n`);
+    return 0;
+  }
+  if (flags.version) {
+    process.stdout.write(`${packageVersion()}\n`);
     return 0;
   }
   const [group, ...rest] = args;

@@ -15,6 +15,7 @@ const OPTIONS = {
   repo: { type: "string", short: "R" },
   json: { type: "boolean" },
   help: { type: "boolean", short: "h" },
+  version: { type: "boolean", short: "v" },
   branch: { type: "string" },
   base: { type: "string" },
   head: { type: "string" },
@@ -44,6 +45,7 @@ export interface Flags {
   repo?: string;
   json?: boolean;
   help?: boolean;
+  version?: boolean;
   branch?: string;
   base?: string;
   head?: string;

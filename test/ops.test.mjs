@@ -1,7 +1,7 @@
 // Tests of `github-rest issue …` and `github-rest pr …` against the fake gh.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { headQuery, issue, pull, sandbox } from "./helpers.mjs";
 
 test("issue view: the fields of gh --json", () => {
@@ -189,6 +189,19 @@ test("usage: exits with 2", () => {
   const help = s.run(s.repo, ["--help"]);
   assert.equal(help.status, 0);
   assert.match(help.out, /github-rest pr create/);
+});
+
+test("--version prints the package version, also next to a command", () => {
+  const s = sandbox();
+  const { version } = JSON.parse(
+    readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+  );
+  for (const args of [["--version"], ["-v"], ["issue", "view", "1", "--version"]]) {
+    const r = s.run(s.repo, args);
+    assert.equal(r.status, 0, args.join(" "));
+    assert.equal(r.out, `${version}\n`);
+  }
+  assert.deepEqual(s.calls(), []);
 });
 
 test("repo: -R wins; outside a checkout and without -R exits with 1", () => {
